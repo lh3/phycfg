@@ -44,15 +44,22 @@ int main_view(int argc, char *argv[])
 	}
 
 	kstring_t out = {0, 0, 0};
-	kn_format(tree->a, tree->n - 1, &out);
-	puts(out.s);
-	free(out.s);
-
-	for (int i = 0; i < tree->n; i++) {
-		if (tree->a[i].n > 0) free(tree->a[i].child);
-		free(tree->a[i].name);
+	if (list_fn) {
+		int n_ext = 0;
+		knhx1_t *ext = kn_extract_marked(tree->a, tree->n, &n_ext);
+		if (ext) {
+			kn_format(ext, n_ext - 1, &out);
+			puts(out.s);
+			free(out.s);
+			kn_destroy(n_ext, ext);
+		}
+	} else {
+		kn_format(tree->a, tree->n - 1, &out);
+		puts(out.s);
+		free(out.s);
 	}
-	free(tree->a);
+
+	kn_destroy(tree->n, tree->a);
 	free(tree);
 	return 0;
 }

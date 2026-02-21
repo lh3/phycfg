@@ -119,9 +119,114 @@ knhx1_t *kn_parse(const char *nhx, int *_n, int *_max, int *_error, char **en)
 	return aux0.a;
 }
 
+void kn_destroy(int n, knhx1_t *a)
+{
+	int i;
+	for (i = 0; i < n; ++i) {
+		if (a[i].n > 0) free(a[i].child);
+		free(a[i].name);
+	}
+	free(a);
+}
+
 /*************
  * Utilities *
  *************/
+
+/*
+ * Extract the minimal induced subtree spanning all marked leaves (aux != 0).
+ * Unary internal nodes (those with exactly one marked-descendant child branch)
+ * are suppressed; their branch lengths are accumulated into the surviving child.
+ * Returns a newly allocated node array of size *n_out_, or NULL if no leaf is
+ * marked.  Caller is responsible for freeing nodes and their name/child arrays.
+ */
+knhx1_t *kn_extract_marked(const knhx1_t *a0, int n0, int *n_out_)
+{
+	int i, n_out = 0;
+	int *mark;
+	knhx1_t *a1;
+
+	*n_out_ = 0;
+	if (n0 <= 0) return 0;
+
+	mark = kom_malloc(int, n0);
+
+	/* Phase 1: bottom-up mark propagation (post-order, i = 0..n0-1) */
+	for (i = 0; i < n0; ++i) {
+		if (a0[i].n == 0) { /* leaf */
+			mark[i] = (int)a0[i].aux;
+		} else { /* internal: count children with marked descendants */
+			int j, cnt = 0;
+			for (j = 0; j < a0[i].n; ++j)
+				if (mark[a0[i].child[j]] > 0) ++cnt;
+			mark[i] = cnt;
+		}
+	}
+
+	/* Phase 2: convert to new-index / sentinel, count output nodes */
+	for (i = 0; i < n0; ++i) {
+		if (mark[i] == 0) {
+			mark[i] = -2;             /* no marked descendants; skip */
+		} else if (a0[i].n == 0) {   /* marked leaf: survives */
+			mark[i] = n_out++;
+		} else if (mark[i] >= 2) {   /* branching internal: survives */
+			mark[i] = n_out++;
+		} else {                      /* mark[i] == 1: unary internal; bypass */
+			mark[i] = -1;
+		}
+	}
+
+	if (n_out == 0) { free(mark); return 0; }
+
+	/* Phase 3: build output array */
+	a1 = kom_calloc(knhx1_t, n_out);
+	for (i = 0; i < n_out; ++i) { a1[i].d = -1.0; a1[i].parent = -1; }
+
+	for (i = 0; i < n0; ++i) {
+		int ni;
+		if (mark[i] < 0) continue;
+		ni = mark[i];
+		/* Step 1: copy name, aux; initial d (root keeps this; others get overwritten) */
+		a1[ni].name = a0[i].name ? kom_strdup(a0[i].name) : kom_strdup("");
+		a1[ni].aux  = a0[i].aux;
+		a1[ni].d    = a0[i].d;
+		if (a0[i].n == 0) { /* leaf */
+			a1[ni].n = 0; a1[ni].child = 0;
+		} else { /* internal: wire up surviving children */
+			int j, nc_max = 0;
+			a1[ni].n = 0; a1[ni].child = 0;
+			for (j = 0; j < a0[i].n; ++j) {
+				int c = a0[i].child[j];
+				int cur, proxy;
+				double acc_d = 0.0;
+				int use_acc = 0;
+				if (mark[c] == -2) continue;
+				/* Bypass walk: skip unary intermediates, accumulate their d */
+				cur = c;
+				while (mark[cur] == -1) {
+					int k, next = -1;
+					if (a0[cur].d >= 0.0) { acc_d += a0[cur].d; use_acc = 1; }
+					for (k = 0; k < a0[cur].n; ++k)
+						if (mark[a0[cur].child[k]] != -2) { next = a0[cur].child[k]; break; }
+					cur = next;
+				}
+				proxy = mark[cur];
+				/* Set proxy's branch length, merging bypass accumulation */
+				if      (a0[cur].d < 0.0 && !use_acc) a1[proxy].d = -1.0;
+				else if (a0[cur].d < 0.0)              a1[proxy].d = acc_d;
+				else if (!use_acc)                     a1[proxy].d = a0[cur].d;
+				else                                   a1[proxy].d = a0[cur].d + acc_d;
+				a1[proxy].parent = ni;
+				kom_grow(int, a1[ni].child, a1[ni].n, nc_max);
+				a1[ni].child[a1[ni].n++] = proxy;
+			}
+		}
+	}
+
+	free(mark);
+	*n_out_ = n_out;
+	return a1;
+}
 
 /****************
  * NH formatter *
