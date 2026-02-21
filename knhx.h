@@ -10,6 +10,7 @@
 
 typedef struct {
 	int parent, n;
+	unsigned long aux; // auxiliary information; not used by knhx
 	int *child;
 	char *name;
 	double d;
