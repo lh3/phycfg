@@ -5,7 +5,7 @@ CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
 LOBJS=		kommon.o knhx.o tree.o io.o
-AOBJS=		view.o
+AOBJS=
 PROG=		phycfg
 LIBS=		-lpthread -lz -lm
 
@@ -39,6 +39,5 @@ depend:
 io.o: phycfg.h knhx.h kommon.h kseq.h
 knhx.o: knhx.h
 kommon.o: kommon.h
-main.o: kommon.h phycfg.h knhx.h
+main.o: kommon.h phycfg.h ketopt.h
 tree.o: kommon.h
-view.o: phycfg.h knhx.h khashl.h ketopt.h
