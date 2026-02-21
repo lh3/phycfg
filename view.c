@@ -26,7 +26,7 @@ int main_view(int argc, char *argv[])
 		return 1;
 	}
 
-	pc_tree_t *tree = pc_tree_read(argv[o.ind]);
+	pc_itree_t *tree = pc_tree_read(argv[o.ind]);
 	if (tree == NULL) return 1;
 
 	if (list_fn) {

@@ -7,7 +7,7 @@
 #include "kseq.h"
 KSTREAM_INIT(gzFile, gzread, 65536)
 
-pc_tree_t *pc_tree_read(const char *fn)
+pc_itree_t *pc_tree_read(const char *fn)
 {
 	gzFile fp;
 	fp = fn && strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(0, "r");
@@ -21,13 +21,13 @@ pc_tree_t *pc_tree_read(const char *fn)
 
 	while (ks_getuntil2(ks, KS_SEP_LINE, &buf, NULL, 1) >= 0) {}
 
-	pc_tree_t *tree = NULL;
+	pc_itree_t *tree = NULL;
 	if (buf.l > 0) {
 		int n, max, error;
 		knhx1_t *nodes = kn_parse(buf.s, &n, &max, &error, NULL);
 		if (error)
 			fprintf(stderr, "[W::pc_tree_read] parse error (bits: %d)\n", error);
-		tree = (pc_tree_t *)calloc(1, sizeof(pc_tree_t));
+		tree = (pc_itree_t *)calloc(1, sizeof(pc_itree_t));
 		tree->n = n;
 		tree->m = max;
 		tree->err = error;
