@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 pc_tree_t *pc_tree_read(const char *fn);
+char **pc_list_read(const char *o, int *n_);
 
 #ifdef __cplusplus
 }
