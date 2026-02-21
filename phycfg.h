@@ -14,16 +14,16 @@ typedef struct {
 } pc_itree_t;
 
 typedef struct pc_node_s {
-	int32_t n_child, ftime;
-	uint64_t flag;
+	int32_t n_child, aux;
 	double d;
-	struct pc_node_s *parent;
+	char *name;
 	void *ptr;
+	struct pc_node_s *parent;
 	struct pc_node_s *child[];
-} pc_node_t;
+} pc_node_t, *pc_node_p;
 
 typedef struct {
-	int32_t n_node, n_leaf;
+	int32_t n_node;
 	pc_node_t *root, **node;
 } pc_tree_t;
 
