@@ -57,7 +57,9 @@ double kom_realtime(void); // call at the beginning to reset the timer
 long kom_peakrss(void);
 double kom_percent_cpu(void);
 
-extern uint8_t kom_nt4_table[256], kom_comp_table[256];
+extern uint8_t kom_nt4_table[256], kom_comp_table[256], kom_aa20_table[256];
+extern char *kom_aa_i2c;
+
 void kom_revcomp(uint64_t len, char *seq);
 
 static inline uint64_t kom_splitmix64(uint64_t *x)

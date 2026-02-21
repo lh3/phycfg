@@ -4,7 +4,7 @@
 #include "phycfg.h"
 #include "kommon.h"
 #include "kseq.h"
-KSTREAM_INIT(gzFile, gzread, 65536)
+KSEQ_INIT(gzFile, gzread)
 
 pc_tree_t *pc_tree_read(const char *fn)
 {
@@ -24,6 +24,62 @@ pc_tree_t *pc_tree_read(const char *fn)
 	tree = buf.l > 0 ? pc_tree_parse(buf.s, NULL) : NULL;
 	free(buf.s);
 	return tree;
+}
+
+pc_msa_t *pc_msa_read(const char *fn)
+{
+	gzFile fp;
+	kseq_t *ks;
+	int32_t i, j, n = 0, m = 0, n_pos;
+	char **name = NULL, **seq = NULL;
+	pc_msa_t *msa = NULL;
+
+	fp = fn && strcmp(fn, "-") ? gzopen(fn, "r") : gzdopen(0, "r");
+	if (fp == NULL) {
+		fprintf(stderr, "[E::pc_msa_read] failed to open '%s'\n", fn);
+		return NULL;
+	}
+	ks = kseq_init(fp);
+	while (kseq_read(ks) >= 0) {
+		kom_grow(char*, name, n, m);
+		seq = kom_realloc(char*, seq, m);
+		name[n] = kom_strdup(ks->name.s);
+		seq[n] = kom_strdup(ks->seq.s);
+		++n;
+	}
+	kseq_destroy(ks);
+	gzclose(fp);
+
+	if (n == 0) goto end_msa_read;
+	n_pos = (int32_t)strlen(seq[0]);
+	for (i = 1; i < n; ++i) {
+		if ((int32_t)strlen(seq[i]) != n_pos) {
+			fprintf(stderr, "[E::pc_msa_read] '%s' has length %d, expected %d\n",
+			        name[i], (int)strlen(seq[i]), (int)n_pos);
+			goto end_msa_read;
+		}
+	}
+	msa = kom_calloc(pc_msa_t, 1);
+	msa->n_seq = n;
+	msa->n_pos = n_pos;
+	msa->rt = PC_RT_UNKNOWN;
+	msa->name = name;
+	name = NULL; /* ownership transferred */
+	msa->msa = kom_malloc(uint8_t*, n_pos);
+	for (i = 0; i < n_pos; ++i) {
+		msa->msa[i] = kom_malloc(uint8_t, n);
+		for (j = 0; j < n; ++j)
+			msa->msa[i][j] = (uint8_t)seq[j][i];
+	}
+
+end_msa_read:
+	if (name) {
+		for (i = 0; i < n; ++i) free(name[i]);
+		free(name);
+	}
+	for (i = 0; i < n; ++i) free(seq[i]);
+	free(seq);
+	return msa;
 }
 
 char **pc_list_read(const char *o, int *n_)

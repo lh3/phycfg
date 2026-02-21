@@ -21,6 +21,15 @@ typedef struct {
 	pc_node_t *root, **node;
 } pc_tree_t;
 
+typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_AA } pc_restype_t;
+
+typedef struct {
+	int32_t n_pos, n_seq; // number of positions and sequences
+	pc_restype_t rt; // residue type
+	char **name; // sequence names
+	uint8_t **msa; // n_pos rows and n_seq columns
+} pc_msa_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,6 +44,10 @@ pc_tree_t *pc_tree_reduce(pc_tree_t *t);
 
 pc_tree_t *pc_tree_read(const char *fn);
 char **pc_list_read(const char *o, int *n_);
+
+pc_msa_t *pc_msa_read(const char *fn);
+pc_restype_t pc_msa_infer_rt(const pc_msa_t *msa);
+void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt);
 
 #ifdef __cplusplus
 }
