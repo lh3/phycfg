@@ -4,7 +4,11 @@
 #include <string.h>
 #include "knhx.h"
 
-#ifndef kom_grow
+/*******************
+ * kommon routines *
+ *******************/
+
+#define kom_malloc(type, cnt)       ((type*)malloc((cnt) * sizeof(type)))
 #define kom_calloc(type, cnt)       ((type*)calloc((cnt), sizeof(type)))
 #define kom_realloc(type, ptr, cnt) ((type*)realloc((ptr), (cnt) * sizeof(type)))
 #define kom_grow(type, ptr, __i, __m) do { \
@@ -14,7 +18,18 @@
 			(ptr) = kom_realloc(type, (ptr), (__m)); \
 		} \
 	} while (0)
-#endif
+
+static char *kom_strdup(const char *src) // strdup() doesn't conform to C99
+{
+	size_t len = strlen(src);
+	char *dst = kom_malloc(char, len + 1);
+	memcpy(dst, src, len + 1);
+	return dst;
+}
+
+/*************
+ * NH parser *
+ *************/
 
 typedef struct {
 	int n, max, err;
@@ -103,6 +118,14 @@ knhx1_t *kn_parse(const char *nhx, int *_n, int *_max, int *_error, char **en)
 	free(stack);
 	return aux0.a;
 }
+
+/*************
+ * Utilities *
+ *************/
+
+/****************
+ * NH formatter *
+ ****************/
 
 #ifndef kroundup32
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
