@@ -1,0 +1,194 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=1in]{geometry}
+
+\usepackage{amssymb}
+
+\begin{document}
+
+\section{Stochastic Context-Free Grammar (SCFG)}
+
+\subsection{Notations}
+
+Let $T=(V,E)$ be a rooted \emph{ordered} full binary tree.
+$V_I$ is the set of internal nodes and $V_E=V\setminus V_I$ the set of leaves.
+$E:V_I\to V\times V$ finds the two ordered children of an internal node.
+We write $v\to(u,w)$ if $v$ is the parent of $u$ and $w$.
+In this case, ${\rm par}(u)={\rm par}(w)=v$.
+${\rm root}(T)$ is the root of the tree.
+$T_v$ denotes the subtree descended from $v$.
+For simplicity, $u\in T_v$ if $u\in V(T_v)$.
+
+$\mathcal{G}(T,\Sigma)=(V_I\times\Sigma\cup\{S_0\},V_E\times\Sigma,\mathcal{R},\mathcal{P})$ is the SCFG derived from $T$
+where $\Sigma$ is the alphabet of residues (nucleotides or amino acids), $S_0$ is the start state,
+$V_I\times\Sigma$ consists of the non-terminal states
+and $V_E\times\Sigma$ consists of terminal states.
+$$
+\mathcal{R}=\{[v,a]\Rightarrow([u,b],[w,c])|\mbox{$v\to(u,w)\in E(T)$ and $a,b,c\in\Sigma$}\}
+$$
+is the set of production rules (or simply rules) and $\mathcal{P}:\mathcal{R}\to\Re$ sets the rule probabilities.
+If $[v,a]\Rightarrow([u,b],[w,c])$, its probability takes the form of $p_u(b|a,\theta)p_w(c|a,\theta)$,
+parameterized by $\theta$.
+$p_u(b|a)$ is the transition probability from $v={\rm par}(u)$ to $u$.
+At the root, the probability of $S_0\Rightarrow[{\rm root}(T),a]$ is $q(a)$.
+
+Intuitively, the SCFG generates residues at leaves.
+Each derivation corresponds to one way to generate the residues.
+Note that although the deduction below is based on the SCFG theory, the SCFG itself is implicit.
+We do not need to explicitly construct the SCFG during implementation.
+
+\subsection{The inside algorithm}
+
+In the following, we assume $v\to(u,w)$.
+$\sigma(v)$ denotes resides at leaves descended from $v$.
+
+\begin{eqnarray*}
+\alpha(v,a)&\triangleq&\Pr\{[v,a]\stackrel{*}{\Rightarrow}\sigma(v)\}\\
+&=&\sum_{b,c}\Pr\big\{[v,a]\Rightarrow([u,b],[w,c])\stackrel{*}{\Rightarrow}\sigma(u)\sigma(w)\big\}\\
+&=&\sum_{b,c}p_u(b|a)p_w(c|a)\alpha(u,b)\alpha(w,c)\\
+&=&\left(\sum_b p_u(b|a)\alpha(u,b)\right)\cdot\left(\sum_c p_w(c|a)\alpha(w,c)\right)\\
+&=&\alpha'(u,a)\alpha'(w,a)
+\end{eqnarray*}
+where
+$$ \alpha'(u,a)\triangleq\sum_b p_u(b|a)\alpha(u,b) $$
+$\alpha(S_0)=\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}$ is the probability of the tree.
+The inside algorithm is equivalent to Felsenstein's algorithm.
+The time complexity is $O(|V|\cdot|\Sigma|^2)$.
+
+\subsection{The outside algorithm}
+
+\begin{eqnarray*}
+\beta(u,b)
+&\triangleq&\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma_1[u,b]\sigma_2\}\\
+&=&\sum_{a,c}\Pr\big\{S_0\stackrel{*}{\Rightarrow}\sigma'_1[v,a]\sigma'_2\Rightarrow\sigma'_1([u,b],[w,c])\sigma'_2\stackrel{*}{\Rightarrow}\sigma'_1([u,b],\sigma(w))\sigma'_2\big\}\\
+&=&\sum_{a,c}\beta(v,a)p_u(b|a)p_w(c|a)\alpha(w,c)\\
+&=&\sum_ap_u(b|a)\beta(v,a)\left(\sum_c p_w(c|a)\alpha(w,c)\right)\\
+&=&\sum_ap_u(b|a)\beta(v,a)\alpha'(w,a)
+\end{eqnarray*}
+For $v={\rm root}(T)$,
+$$ \beta(v,a)=\Pr\{S_0\Rightarrow[v,a]\}=q(a) $$
+where $q(a)$ is the ancestral state of the root. The probability of the tree
+can be computed with
+\begin{eqnarray*}
+P(T)&=&\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}\\
+&=&\sum_b\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma_1[u,b]\sigma_2\stackrel{*}{\Rightarrow}\sigma_1\sigma(u)\sigma_2\}\\
+&=&\sum_b\alpha(u,b)\beta(u,b)
+\end{eqnarray*}
+
+\subsection{The branch form}
+
+We call $\alpha(v,a)$ and $\beta(v,a)$ the node forms.
+We introduce the branch form in preparation for the next section.
+It is also essential for fast nearest neighbor interchange (NNI) in rooted trees.
+
+\begin{eqnarray*}
+P(T)
+&=&\sum_b\alpha(u,b)\beta(u,b)\\
+&=&\sum_{a,b,c}\alpha(u,b)\beta(v,a)p_u(b|a)p_w(c|a)\alpha(w,c)\\
+&=&\sum_{a,b}\alpha(u,b)p_u(b|a)\beta(v,a)\alpha'(w,a)
+\end{eqnarray*}
+If $u\not={\rm root}(T)$, let
+$$
+\eta_u(b|a)\triangleq\alpha(u,b)\beta(v,a)\alpha'(w,a)
+$$
+Then
+$$ P(T)=\sum_{a,b}p_u(b|a)\eta_u(b|a) $$
+When $u$ is an internal node, suppose $u\to(x,y)$. We have
+$$
+\eta_u(b|a)=\beta(v,a)\cdot\alpha'(x,b)\alpha'(y,b)\alpha'(w,a)
+$$
+With this equation, if we swap the sibling of $u$ with a child of $u$,
+$\beta(v,a)$ and all three $\alpha'()$ stay the same.
+We can update $\eta_u(b|a)$ without descending into the subtrees of $x$, $y$ and $w$,
+and thus we can recompute the probability of the new tree in $O(|\Sigma|^2)$ time.
+This gives us an efficient way to explore alternative tree topologies locally,
+which is effectively NNI.
+
+Note that we can also extend the definition $\eta_u(b|a)$ to the root by defining
+$p_u(b|\cdot)=q(b)$ and $\eta_u(b|\cdot)=\alpha(u,b)$.
+We will use this convention in the following.
+
+\subsection{The posteriors}
+
+Let $X_{v,a}(\pi)$ be the number of times we see $a$ at node $v$ in a
+derivation. On a single tree, $X_{v,a}$ is either 0 or 1. We can compute
+\begin{eqnarray*}
+x_{v,a}&=&\sum_{\pi}X_{v,a}(\pi)\Pr(\pi|T)\\
+&=&\Pr\{S_0\Rightarrow\sigma_1[v,a]\sigma_2\Rightarrow\sigma_1\sigma(T_v)\sigma_2|S_0\Rightarrow\sigma(T)\}\\
+&=&\frac{1}{P(T)}\alpha(v,a)\beta(v,a)\\
+&=&\frac{\alpha(v,a)\beta(v,a)}{\sum_b\alpha(v,b)\beta(v,b)}
+\end{eqnarray*}
+Obviously, $\sum_a x_{v,a}=1$, which is expected. Similarly, let
+$X_{u,ab}(\pi)$ be the number of times $a\to b$ changes are observed between
+$u$ and its parent $v$.
+\begin{eqnarray*}
+x_{u,ab}
+&=&\sum_{\pi}X_{u,ab}(\pi)\Pr(\pi|T)\\
+&=&\sum_c\Pr\{S_0\Rightarrow\sigma_1[v,a]\sigma_2\Rightarrow\sigma'_1([u,b],[w,c])\sigma'_2\Rightarrow\sigma'_1(\sigma(T_u),\sigma(T_w))\sigma'_2|S_0\Rightarrow\sigma(T)\}\\
+&=&\frac{1}{P(T)}\sum_c\beta(v,a)p_u(b|a)p_w(c|a)\alpha(u,b)\alpha(w,c)\\
+&=&\frac{\beta(v,a)p_u(b|a)\alpha(u,b)\alpha'(w,a)}{\sum_{a',b'}p_u(b'|a')\eta_u(b'|a')}\\
+&=&\frac{p_u(b|a)\eta_u(b|a)}{\sum_{a',b'}p_u(b'|a')\eta_u(b'|a')}
+\end{eqnarray*}
+with $\sum_{a,b}x_{u,ab}=1$.
+
+\subsection{Parameter estimation by EM}
+
+The EM $Q$ function is:
+$$
+Q(\theta|\theta^t)=\sum_i\sum_u\sum_{a,b}x^{(i)}_{u,ab}\log p_u(b|a)+\sum_i\sum_c x^{(i)}_{{\rm root}(T),c}\log q(c)
+$$
+where $x^{(i)}_{u,ab}$ corresponds to the posterio at column $i$ in a multi-sequence alignment (MSA).
+If we parameterize the SCFG by $p_u(b|a)$ with all transitions being free parameters,
+the EM estimate of $p_u(b|a)$ is
+$$
+\hat{p}^{(t+1)}_u(b|a) = \frac{\sum_i x^{(i)}_{u,ab}}{\sum_i x^{(i)}_{{\rm par}(u),a}}
+$$
+
+\subsection{Numerical stability}
+
+For numerical stability, we need to scale $\alpha$ and $\beta$.
+We introduce $h(v)$ for $v\in T$ to scale $\alpha$.
+To find a proper form of $h(v)$, define
+$$ \tilde\alpha(v,a)\triangleq\frac{\alpha(v,a)}{\prod_{v'\in T_v}h(v')} $$
+$$ \tilde\beta(u,b) \triangleq\frac{\beta(u,b)}{h(u)\prod_{u'\in T\setminus T_u}h(u')} $$
+We can prove
+$$ \tilde\alpha(v,a)=\frac{1}{h(v)}\sum_{b,c}p_u(b|a)p_w(c|a)\tilde\alpha(u,b)\tilde\alpha(w,c) $$
+$$ \tilde\beta(u,b)=\frac{1}{h(u)}\sum_{a,c}p_u(b|a)p_w(c|a)\tilde\beta(v,a)\tilde\alpha(w,c) $$
+\begin{eqnarray*}
+P(T)&=&h(v)\prod_{v'}h(v')\cdot\sum_a \tilde\alpha(v,a)\tilde\beta(v,a) \\
+&=&\prod_{v'\not=u}h(v')\sum_{a,b}p_u(b|a)\tilde\beta(v,a)\cdot\tilde\alpha'(x,b)\tilde\alpha'(y,b)\tilde\alpha'(w,a)
+\end{eqnarray*}
+There are more than one ways to define $h(v)$. We may choose:
+$$ h(v)=\sum_{a,b,c}p_u(b|a)p_w(c|a)\tilde\alpha(u,b)\tilde\alpha(w,c) $$
+This way, $\sum_a\tilde\alpha(v,a)=1$.
+
+%\section{Emission Probability}
+%
+%$$\left(\begin{array}{lll}
+%p & q & 0 \\
+%p & q/2 & q/2 \\
+%\end{array}\right)\Rightarrow
+%\left(\begin{array}{lll}
+%1 & 1 & 0 \\
+%1 & 1/2 & 1/2 \\
+%\end{array}\right)\Rightarrow
+%\left(\begin{array}{lll}
+%1 & 1-\epsilon/2 & \epsilon/2 \\
+%1 & 1/2 & 1/2 \\
+%\end{array}\right)
+%$$
+%$$\left(\begin{array}{llll}
+%p^2 & 1-p^2 & 0 & 0 \\
+%p^2 & pq & q^2 & pq \\
+%\end{array}\right)\Rightarrow
+%\left(\begin{array}{llll}
+%1 & 1 & 0 & 0 \\
+%1 & \frac{p}{1+p} & \frac{q}{1+p} & \frac{p}{1+p} \\
+%\end{array}\right)\Rightarrow
+%\left(\begin{array}{llll}
+%1 & 1-\frac{\epsilon}{1+p} & \frac{\epsilon q}{1+p} & \frac{\epsilon p}{1+p} \\
+%1 & \frac{p}{1+p} & \frac{q}{1+p} & \frac{p}{1+p} \\
+%\end{array}\right)
+%$$
+
+\end{document}
