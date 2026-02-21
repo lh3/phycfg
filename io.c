@@ -2,41 +2,27 @@
 #include <stdio.h>
 #include <zlib.h>
 #include "phycfg.h"
-#include "knhx.h"
 #include "kommon.h"
 #include "kseq.h"
 KSTREAM_INIT(gzFile, gzread, 65536)
 
-pc_itree_t *pc_tree_read(const char *fn)
+pc_tree_t *pc_tree_read(const char *fn)
 {
 	gzFile fp;
-	fp = fn && strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(0, "r");
+	kstream_t *ks;
+	kstring_t buf = {0, 0, 0};
+	pc_tree_t *tree;
+	fp = fn && strcmp(fn, "-") ? gzopen(fn, "r") : gzdopen(0, "r");
 	if (fp == NULL) {
 		fprintf(stderr, "[E::pc_tree_read] failed to open '%s'\n", fn);
 		return NULL;
 	}
-
-	kstream_t *ks = ks_init(fp);
-	kstring_t buf = {0, 0, 0};
-
+	ks = ks_init(fp);
 	while (ks_getuntil2(ks, KS_SEP_LINE, &buf, NULL, 1) >= 0) {}
-
-	pc_itree_t *tree = NULL;
-	if (buf.l > 0) {
-		int n, max, error;
-		knhx1_t *nodes = kn_parse(buf.s, &n, &max, &error, NULL);
-		if (error)
-			fprintf(stderr, "[W::pc_tree_read] parse error (bits: %d)\n", error);
-		tree = (pc_itree_t *)calloc(1, sizeof(pc_itree_t));
-		tree->n = n;
-		tree->m = max;
-		tree->err = error;
-		tree->a = nodes;
-	}
-
-	free(buf.s);
 	ks_destroy(ks);
 	gzclose(fp);
+	tree = buf.l > 0 ? pc_tree_parse(buf.s, NULL) : NULL;
+	free(buf.s);
 	return tree;
 }
 

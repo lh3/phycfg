@@ -16,23 +16,12 @@ typedef struct {
 	double d;
 } knhx1_t;
 
-#ifndef KSTRING_T
-#define KSTRING_T kstring_t
-typedef struct __kstring_t {
-	size_t l, m;
-	char *s;
-} kstring_t;
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 knhx1_t *kn_parse(const char *nhx, int *_n, int *_max, int *_error, char **en);
 void kn_destroy(int n, knhx1_t *a);
-void kn_format(const knhx1_t *node, int root, kstring_t *s);
-knhx1_t *kn_extract_marked(const knhx1_t *a0, int n0, int *n_out_);
-double kn_height(int n, const knhx1_t *a);
 
 #ifdef __cplusplus
 }
