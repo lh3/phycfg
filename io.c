@@ -17,22 +17,23 @@ pc_tree_t *pc_tree_read(const char *fn)
 	}
 
 	kstream_t *ks = ks_init(fp);
-	kstring_t line = {0, 0, 0};
-	pc_tree_t *tree = NULL;
+	kstring_t buf = {0, 0, 0};
 
-	while (ks_getuntil(ks, KS_SEP_LINE, &line, NULL) >= 0) {
-		if (line.l == 0) continue;
+	while (ks_getuntil2(ks, KS_SEP_LINE, &buf, NULL, 1) >= 0) {}
+
+	pc_tree_t *tree = NULL;
+	if (buf.l > 0) {
 		int n, max, error;
-		knhx1_t *nodes = kn_parse(line.s, &n, &max, &error, 0);
+		knhx1_t *nodes = kn_parse(buf.s, &n, &max, &error, NULL);
 		if (error)
 			fprintf(stderr, "[W::pc_tree_read] parse error (bits: %d)\n", error);
 		tree = (pc_tree_t *)calloc(1, sizeof(pc_tree_t));
-		tree->n = tree->m = n;
+		tree->n = n;
+		tree->m = max;
 		tree->a = nodes;
-		break;  // read the first tree only
 	}
 
-	free(line.s);
+	free(buf.s);
 	ks_destroy(ks);
 	gzclose(fp);
 	return tree;
