@@ -22,8 +22,8 @@ pc_tree_t *pc_tree_read(const char *fn)
 
 	while (ks_getuntil(ks, KS_SEP_LINE, &line, NULL) >= 0) {
 		if (line.l == 0) continue;
-		int n, error;
-		knhx1_t *nodes = kn_parse(line.s, &n, &error);
+		int n, max, error;
+		knhx1_t *nodes = kn_parse(line.s, &n, &max, &error, 0);
 		if (error)
 			fprintf(stderr, "[W::pc_tree_read] parse error (bits: %d)\n", error);
 		tree = (pc_tree_t *)calloc(1, sizeof(pc_tree_t));

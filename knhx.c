@@ -4,27 +4,36 @@
 #include <string.h>
 #include "knhx.h"
 
-typedef struct {
-	int error, n, max;
-	knhx1_t *node;
-} knaux_t;
+#ifndef kom_grow
+#define kom_calloc(type, cnt)       ((type*)calloc((cnt), sizeof(type)))
+#define kom_realloc(type, ptr, cnt) ((type*)realloc((ptr), (cnt) * sizeof(type)))
+#define kom_grow(type, ptr, __i, __m) do { \
+		if ((__i) >= (__m)) { \
+			(__m) = (__i) + 1; \
+			(__m) += ((__m)>>1) + 16; \
+			(ptr) = kom_realloc(type, (ptr), (__m)); \
+		} \
+	} while (0)
+#endif
 
-static inline char *add_node(const char *s, knaux_t *aux, int x)
+typedef struct {
+	int n, max, err;
+	knhx1_t *a;
+} kn_aux_t;
+
+static inline char *add_node(const char *s, kn_aux_t *aux, int x)
 {
 	char *p, *nbeg, *nend = 0;
 	knhx1_t *r;
-	if (aux->n == aux->max) {
-		aux->max = aux->max? aux->max<<1 : 8;
-		aux->node = (knhx1_t*)realloc(aux->node, sizeof(knhx1_t) * aux->max);
-	}
-	r = aux->node + (aux->n++);
+	kom_grow(knhx1_t, aux->a, aux->n, aux->max);
+	r = aux->a + (aux->n++);
 	r->n = x; r->parent = -1;
 	for (p = (char*)s, nbeg = p, r->d = -1.0; *p && *p != ',' && *p != ')'; ++p) {
 		if (*p == '[') {
 			if (nend == 0) nend = p;
-			do ++p; while (*p && *p != ']');
+			do { ++p; } while (*p && *p != ']');
 			if (*p == 0) {
-				aux->error |= KNERR_BRACKET;
+				aux->err |= KN_ERR_BRACKET;
 				break;
 			}
 		} else if (*p == ':') {
@@ -41,24 +50,21 @@ static inline char *add_node(const char *s, knaux_t *aux, int x)
 	return p;
 }
 
-knhx1_t *kn_parse(const char *nhx, int *_n, int *_error)
+knhx1_t *kn_parse(const char *nhx, int *_n, int *_max, int *_error, char **en)
 {
-	char *p;
+	char *p = (char*)nhx;
 	int *stack, top, max;
-	knaux_t *aux;
-	knhx1_t *ret;
+	kn_aux_t aux0, *aux = &aux0;
 
-#define __push_back(y) do {										\
-		if (top == max) {										\
-			max = max? max<<1 : 16;								\
-			stack = (int*)realloc(stack, sizeof(int) * max);	\
-		}														\
-		stack[top++] = (y);										\
-	} while (0)													\
+	#define __push_back(y) do { kom_grow(int, stack, top, max); stack[top++] = (y); } while (0)
+
+	*_n = *_max = *_error = 0;
+	if (en) *en = 0;
+	memset(aux, 0, sizeof(*aux));
+	while (*p && *p != '(') {} // search for the first (
+	if (*p == 0) return 0; // no tree found
 
 	stack = 0; top = max = 0;
-	p = (char*)nhx;
-	aux = (knaux_t*)calloc(1, sizeof(knaux_t));
 	while (*p) {
 		while (*p && !isgraph(*p)) ++p;
 		if (*p == 0) break;
@@ -67,28 +73,35 @@ knhx1_t *kn_parse(const char *nhx, int *_n, int *_error)
 			__push_back(-1);
 			++p;
 		} else if (*p == ')') {
-			int x = aux->n, m, i;
+			int x = aux->n, m, i, fin = 0;
 			for (i = top - 1; i >= 0; --i)
 				if (stack[i] < 0) break;
+			if (i < 0) {
+				aux->err |= KN_ERR_NO_RGHT;
+				break;
+			} else if (i == 0) {
+				if (en) *en = p + 1;
+				fin = 1;
+			}
 			m = top - 1 - i;
 			p = add_node(p + 1, aux, m);
-			aux->node[x].child = (int*)calloc(m, sizeof(int));
+			aux->a[x].child = (int*)calloc(m, sizeof(int));
 			for (i = top - 1, m = m - 1; m >= 0; --m, --i) {
-				aux->node[x].child[m] = stack[i];
-				aux->node[stack[i]].parent = x;
+				aux->a[x].child[m] = stack[i];
+				aux->a[stack[i]].parent = x;
 			}
 			top = i;
 			__push_back(x);
+			if (fin) break;
 		} else {
 			__push_back(aux->n);
 			p = add_node(p, aux, 0);
 		}
 	}
-	*_n = aux->n;
-	*_error = aux->error;
-	ret = aux->node;
-	free(aux); free(stack);
-	return ret;
+	if (en && *p == 0) *en = p;
+	*_n = aux->n, *_max = aux->max, *_error = aux->err;
+	free(stack);
+	return aux0.a;
 }
 
 #ifndef kroundup32
@@ -130,13 +143,13 @@ static void format_node_recur(const knhx1_t *node, const knhx1_t *p, kstring_t *
 		kputc(')', s);
 		if (p->name) kputsn(p->name, strlen(p->name), s);
 		if (p->d >= 0) {
-			sprintf(numbuf, ":%g", p->d);
+			snprintf(numbuf, 127, ":%g", p->d);
 			kputsn(numbuf, strlen(numbuf), s);
 		}
 	} else {
 	  kputsn(p->name, strlen(p->name), s);
 	  if (p->d >= 0) {
-	    sprintf(numbuf, ":%g", p->d);
+	    snprintf(numbuf, 127, ":%g", p->d);
 	    kputsn(numbuf, strlen(numbuf), s);
 	  }
 	}
@@ -153,9 +166,9 @@ int main(int argc, char *argv[])
 {
 	char *s = "((a[abc],d1)x:0.5,((b[&&NHX:S=MOUSE],h2)[&&NHX:S=HUMAN:B=99][blabla][&&NHX:K=foo],c))";
 	knhx1_t *node;
-	int i, j, n, error;
+	int i, j, n, max, error;
 	kstring_t str;
-	node = kn_parse(s, &n, &error);
+	node = kn_parse(s, &n, &max, &error, 0);
 	for (i = 0; i < n; ++i) {
 		knhx1_t *p = node + i;
 		printf("[%d] %s\t%d\t%d\t%g", i, p->name, p->parent, p->n, p->d);

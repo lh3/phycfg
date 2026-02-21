@@ -3,10 +3,10 @@
 
 #include <stddef.h>
 
-#define KNERR_MISSING_LEFT   0x01
-#define KNERR_MISSING_RGHT   0x02
-#define KNERR_BRACKET        0x04
-#define KNERR_COLON          0x08
+#define KN_ERR_NO_LEFT   0x01
+#define KN_ERR_NO_RGHT   0x02
+#define KN_ERR_BRACKET   0x04
+#define KN_ERR_COLON     0x08
 
 typedef struct {
 	int parent, n;
@@ -28,8 +28,8 @@ typedef struct __kstring_t {
 extern "C" {
 #endif
 
-	knhx1_t *kn_parse(const char *nhx, int *_n, int *_error);
-	void kn_format(const knhx1_t *node, int root, kstring_t *s);
+knhx1_t *kn_parse(const char *nhx, int *_n, int *_max, int *_error, char **en);
+void kn_format(const knhx1_t *node, int root, kstring_t *s);
 
 #ifdef __cplusplus
 }
