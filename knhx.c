@@ -228,6 +228,33 @@ knhx1_t *kn_extract_marked(const knhx1_t *a0, int n0, int *n_out_)
 	return a1;
 }
 
+/* Maximum root-to-leaf distance summing branch lengths (absent d treated as 0).
+ * Returns 0 for a single-node tree. */
+double kn_height(int n, const knhx1_t *a)
+{
+	double *h, ret;
+	int i, j;
+
+	if (n <= 0) return 0.0;
+	h = kom_malloc(double, n);
+	for (i = 0; i < n; ++i) {
+		if (a[i].n == 0) {
+			h[i] = 0.0;
+		} else {
+			double mx = 0.0;
+			for (j = 0; j < a[i].n; ++j) {
+				int c = a[i].child[j];
+				double v = h[c] + (a[c].d >= 0.0 ? a[c].d : 0.0);
+				if (v > mx) mx = v;
+			}
+			h[i] = mx;
+		}
+	}
+	ret = h[n - 1];
+	free(h);
+	return ret;
+}
+
 /****************
  * NH formatter *
  ****************/
