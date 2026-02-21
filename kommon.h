@@ -46,6 +46,7 @@ extern "C" {
 extern int kom_verbose, kom_dbg, kom_dbg_flag;
 
 char *kom_strdup(const char *src);
+char *kom_strndup(const char *src, size_t n);
 int64_t kom_parse_num(const char *str, char **q);
 void kom_panic(const char *func, const char *msg);
 

@@ -9,6 +9,7 @@
 typedef struct {
 	int n;      // numbder of nodes
 	int m;      // capacity of a
+	int err;    // error code
 	knhx1_t *a; // list of nodes, of size n
 } pc_tree_t;
 

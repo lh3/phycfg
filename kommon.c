@@ -8,11 +8,17 @@ int kom_verbose = 3, kom_dbg = 0, kom_dbg_flag = 0;
 
 char *kom_strdup(const char *src) // strdup() doesn't conform to C99
 {
-	size_t len;
-	char *dst;
-	len = strlen(src);
-	dst = kom_malloc(char, len + 1);
+	size_t len = strlen(src);
+	char *dst = kom_malloc(char, len + 1);
 	memcpy(dst, src, len + 1);
+	return dst;
+}
+
+char *kom_strndup(const char *src, size_t n)
+{
+	char *dst = kom_malloc(char, n + 1);
+	strncpy(dst, src, n);
+	dst[n] = 0;
 	return dst;
 }
 
