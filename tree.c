@@ -196,8 +196,12 @@ static void format_node_recur(kstring_t *s, pc_node_t *p, char *numbuf)
 	}
 }
 
-void pc_tree_format(kstring_t *s, const pc_tree_t *t) // TODO: get rid of recursion
+int32_t pc_tree_format(const pc_tree_t *t, char **s, int32_t *max)
 {
+	kstring_t str;
 	char numbuf[128];
-	format_node_recur(s, t->root, numbuf);
+	str.s = *s; str.l = 0; str.m = (size_t)*max;
+	format_node_recur(&str, t->root, numbuf);
+	*s = str.s; *max = (int32_t)str.m;
+	return (int32_t)str.l;
 }

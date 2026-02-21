@@ -24,36 +24,57 @@ Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not
 
 ### Command dispatch
 
-`main.c` is the entry point. It dispatches subcommands to dedicated `main_<command>()` functions:
-- `view` → `main_view()` in `view.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
+`main.c` is the entry point and also contains `main_view()`. It dispatches subcommands:
+- `view` → `main_view()` at the bottom of `main.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
 - `version` → prints `PC_VERSION` from `phycfg.h`
 
 When `kom_verbose >= 3` and the command succeeds, timing/resource info is printed to stderr.
 
 ### Library (`libphycfg.a`)
 
-Two object files are archived into a static library, then linked with `view.o` and `main.o`:
+Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`.
 
 - **`kommon.c`/`kommon.h`** — general-purpose utilities:
   - Memory macros: `kom_malloc`, `kom_calloc`, `kom_realloc`, `kom_grow` (dynamic array growth with 1.5× expansion)
-  - String: `kstring_t` (length-tracked), `kom_strdup`, `kom_sprintf_lite` (limited format: `%d`, `%ld`, `%u`, `%s`, `%c`)
+  - String: `kstring_t` (length-tracked), `kom_strdup`, `kom_strndup`, `kom_sprintf_lite` (limited format: `%d`, `%ld`, `%u`, `%s`, `%c`)
   - Numerics: `kom_parse_num` (parses K/M/G suffixes), `kom_splitmix64` (fast RNG), `kom_u64todbl`
   - Timing/RSS: `kom_realtime()`, `kom_cputime()`, `kom_peakrss()`, `kom_percent_cpu()` (cross-platform: POSIX + Win32)
-  - DNA: `kom_nt4_table`, `kom_comp_table`, `kom_revcomp()`
+  - Residues: `kom_nt4_table` (A/C/G/T→0–3, else 4), `kom_comp_table`, `kom_revcomp()`, `kom_aa20_table` (20 AAs + X + \*→0–21, else 22), `kom_aa_i2c` (index-to-char string `"ARNDCQEGHILKMFPSTWYV*X"`)
   - Globals: `kom_verbose` (default 3), `kom_dbg`, `kom_dbg_flag`
 
-- **`knhx.c`/`knhx.h`** — Newick/NHX phylogenetic tree parser:
-  - `kn_parse(nhx, &n, &error)` — parses a Newick/NHX string into a flat array of `knhx1_t` nodes; error bits defined as `KNERR_*` constants
-  - `kn_destroy(n, a)` — frees a node array (name strings, child index arrays, the array itself)
-  - `kn_format(node, root, &s)` — formats a node array back to Newick string into a `kstring_t`
-  - `kn_extract_marked(a0, n0, &n_out)` — extracts the minimal induced subtree spanning all leaves with `aux != 0`; unary internals are suppressed and their branch lengths accumulated into the surviving child; returns a freshly allocated array (caller must `kn_destroy` it) or NULL if no leaf is marked
-  - `knhx1_t` fields: `parent`, `n` (child count), `child[]`, `name`, `d` (branch length, -1.0 if absent), `aux` (caller-defined tag; used by `kn_extract_marked` to identify marked leaves)
-  - **Gotcha**: `kn_parse` does not initialise `child` for leaf nodes (only internal nodes get a `calloc`'d child array). Always guard with `if (a[i].n > 0)` before freeing or dereferencing `child`; `kn_destroy` handles this correctly.
-  - Can be built standalone with `-DKNHX_MAIN` for testing
+- **`knhx.c`/`knhx.h`** — Newick/NHX parser (parsing only; no formatting or tree operations):
+  - `kn_parse(nhx, &n, &max, &error, &end)` — parses a Newick/NHX string into a flat `calloc`'d array of `knhx1_t` nodes; error bits defined as `KNERR_*` constants
+  - `kn_destroy(n, a)` — frees node array (name strings, child index arrays, the array itself)
+  - `knhx1_t` fields: `parent`, `n` (child count), `child[]`, `name`, `d` (branch length, -1.0 if absent), `aux`
+  - **Gotcha**: `kn_parse` does not initialise `child` for leaf nodes. Always guard with `if (a[i].n > 0)` before freeing or dereferencing `child`; `kn_destroy` handles this correctly.
+  - Used only by `pc_tree_parse` in `tree.c`; not part of the public API
+
+- **`tree.c`** — primary tree data structures and operations (declared in `phycfg.h`):
+  - `pc_node_t` fields: `n_child`, `ftime` (post-order index), `aux` (caller tag), `d` (branch length, -1.0 if absent), `name`, `ptr`, `parent`, `child[]` (flexible array)
+  - `pc_tree_t` fields: `n_node`, `root`, `node` (pointer array in post-order; `node[i]->ftime == i`)
+  - `pc_tree_parse(str, &end)` — parse Newick/NHX string via `kn_parse`, convert to `pc_tree_t`
+  - `pc_tree_expand(root, node)` — post-order traversal; pass `node=NULL` to count, non-NULL to fill
+  - `pc_tree_sync(t)` — rebuild `t->node[]` and `ftime` fields from scratch (always frees and reallocates)
+  - `pc_tree_mark_leaf(t, n, leaf)` — set `aux=1` on leaves whose names appear in `leaf[0..n-1]`
+  - `pc_tree_reduce(t)` — return a new `pc_tree_t` spanning only leaves with `aux != 0`; suppresses unary internals, accumulates branch lengths; caller must `pc_tree_destroy` result
+  - `pc_tree_format(t, &s, &max)` — format tree to Newick; reusable-buffer API (pass `NULL`/`0` first call; `s` and `max` updated in place); returns string length; caller frees `*s`
+  - `pc_tree_destroy(t)` — free all nodes and the `pc_tree_t` itself
+
+- **`io.c`** — file I/O (uses `kseq.h` via `KSEQ_INIT(gzFile, gzread)`):
+  - `pc_tree_read(fn)` — read a gzip-compressed NHX file; returns `pc_tree_t*` or NULL
+  - `pc_msa_read(fn)` — read a gzip-compressed FASTA MSA; validates uniform length; stores plain ASCII in `msa->msa[pos][seq]` layout; returns `pc_msa_t*` or NULL
+  - `pc_list_read(o, &n)` — parse comma/space-separated names from string, or from `@file`; returns `char**`
+
+- **`msa.c`** — MSA operations (declared in `phycfg.h`):
+  - `pc_msa_infer_rt(msa)` — infer `pc_restype_t` from letter frequencies: ≥50% A/C/G/T → `PC_RT_NT`; ≥80% standard AA letters → `PC_RT_AA`; else `PC_RT_UNKNOWN`
+  - `pc_msa_encode(msa, rt)` — set `msa->rt = rt` then encode ASCII in-place using `kom_nt4_table` (NT) or `kom_aa20_table` (AA); if `rt == PC_RT_UNKNOWN`, does nothing
+  - `pc_msa_t` fields: `n_pos`, `n_seq`, `rt`, `name` (sequence names), `msa` (`uint8_t**`, position-major layout)
 
 ### Third-party headers
 
-- **`kseq.h`** — macro-based streaming FASTA/Q parser from [klib](https://github.com/attractivechaos/klib) (MIT). Instantiated via `KSEQ_INIT(type_t, __read)` macro. Included in `view.c` but not yet used.
+- **`kseq.h`** — macro-based streaming FASTA/Q + kstream parser from [klib](https://github.com/attractivechaos/klib) (MIT). Instantiated in `io.c` via `KSEQ_INIT(gzFile, gzread)`.
+- **`khashl.h`** — open-addressing hash table from klib (MIT). Used in `tree.c` for `pc_tree_mark_leaf`.
+- **`ketopt.h`** — command-line option parser. Used in `main.c`.
 
 ## Test Data
 

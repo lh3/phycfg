@@ -69,10 +69,11 @@ int main_view(int argc, char *argv[])
 
 	pc_tree_t *out = list_fn ? pc_tree_reduce(tree) : tree;
 	if (out) {
-		kstring_t s = {0, 0, 0};
-		pc_tree_format(&s, out);
-		puts(s.s);
-		free(s.s);
+		char *s = NULL;
+		int32_t max = 0;
+		pc_tree_format(out, &s, &max);
+		puts(s);
+		free(s);
 		if (out != tree) pc_tree_destroy(out);
 	}
 	pc_tree_destroy(tree);
