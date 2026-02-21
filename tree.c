@@ -27,6 +27,7 @@ pc_tree_t *pc_tree_parse(const char *str, char **en)
 		knhx1_t *q = &a[i];
 		pc_node_t *p;
 		p = t->node[i] = pc_node_new(q->n);
+		p->ftime = i;
 		p->name = kom_strdup(q->name);
 		p->d = q->d;
 		for (k = 0; k < p->n_child; ++k) {
@@ -66,6 +67,77 @@ int pc_tree_expand(const pc_node_t *root, pc_node_t **node)
 	free(stack);
 	return ftime + 1;
 }
+
+void pc_tree_sync(pc_tree_t *t)
+{
+	int32_t i;
+	if (t->node == 0 || t->n_node == 0) {
+		if (t->node) free(t->node);
+		t->n_node = pc_tree_expand(t->root, 0);
+		t->node = kom_malloc(pc_node_t*, t->n_node);
+	}
+	t->n_node = pc_tree_expand(t->root, t->node);
+	for (i = 0; i < t->n_node; ++i)
+		t->node[i]->ftime = i;
+}
+
+pc_tree_t *pc_tree_reduce(pc_tree_t *t)
+{
+	int32_t i, n_marked = 0, max_child = 0, *a;
+	pc_tree_t *s = 0;
+	pc_node_t **sub, *p, *q;
+	sub = kom_malloc(pc_node_t*, t->n_node);
+	for (i = 0; i < t->n_node; ++t) {
+		sub[i] = 0;
+		max_child = max_child > t->node[i]->n_child? max_child : t->node[i]->n_child;
+		if (t->node[i]->n_child == 0 && t->node[i]->aux > 0)
+			++n_marked;
+	}
+	if (n_marked == 0) {
+		free(sub);
+		return 0;
+	}
+	a = kom_malloc(int32_t, max_child);
+	for (i = 0; i < t->n_node; ++i) {
+		p = t->node[i];
+		if (p->n_child == 0) {
+			if (p->aux <= 0) continue;
+			q = pc_node_new(0);
+			q->name = kom_strdup(p->name);
+			q->d = p->d;
+			sub[i] = q;
+		} else {
+			int32_t j, k;
+			for (j = k = 0; j < p->n_child; ++j)
+				if (sub[p->child[j]->ftime])
+					a[k++] = p->child[j]->ftime;
+			if (k == 1) { // just one node
+				q = sub[i] = sub[a[0]];
+				q->d += p->d;
+			} else if (k >= 2) {
+				q = pc_node_new(k);
+				q->d = p->d;
+				if (p->name) q->name = kom_strdup(p->name);
+				for (j = 0; j < k; ++j) {
+					sub[a[j]]->parent = q;
+					q->child[j] = sub[a[j]];
+				}
+				sub[i] = q;
+			} // if k == 0, do nothing
+		}
+	}
+	q = sub[t->n_node - 1];
+	free(a);
+	free(sub);
+	s = kom_calloc(pc_tree_t, 1);
+	s->root = q;
+	pc_tree_sync(s);
+	return s;
+}
+
+/**********
+ * Format *
+ **********/
 
 static void format_node_recur(kstring_t *s, pc_node_t *p, char *numbuf)
 {
