@@ -78,7 +78,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`
 
 ## Test Data
 
-`test/TF101005.{mfa,nhx}.gz` — a transcription factor family dataset:
+`test/{CCNE,TF101005}.{mfa,nhx}.gz` — a transcription factor family dataset:
 - `.mfa.gz` — multiple sequence alignment in FASTA format (gzip-compressed)
 - `.nhx.gz` — phylogenetic tree in Newick/NHX format (gzip-compressed)
 
