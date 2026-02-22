@@ -15,7 +15,7 @@ The binary is built as `./phycfg`. There are no automated tests at this stage; t
 Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not decompress test files).
 
 ```sh
-./phycfg view test/TF101005.nhx.gz   # example usage
+./phycfg view test/CCNE.nhx.gz   # example usage
 ```
 
 ## Architecture
@@ -24,8 +24,9 @@ Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not
 
 ### Command dispatch
 
-`main.c` is the entry point and also contains `main_view()`. It dispatches subcommands:
+`main.c` is the entry point and also contains `main_view()` and `main_msaflt()`. It dispatches subcommands:
 - `view` → `main_view()` at the bottom of `main.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
+- `msaflt` → `main_msaflt()`; reads a gzip'd FASTA MSA, infers residue type, encodes, filters columns, and writes decoded FASTA to stdout; accepts `-m INT` (min non-gap/non-ambiguous residues per column, default 1) and `-c` (treat as CDS, filter whole codons)
 - `version` → prints `PC_VERSION` from `phycfg.h`
 
 When `kom_verbose >= 3` and the command succeeds, timing/resource info is printed to stderr.
@@ -67,8 +68,10 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`
 
 - **`msa.c`** — MSA operations (declared in `phycfg.h`):
   - `pc_msa_infer_rt(msa)` — infer `pc_restype_t` from letter frequencies: ≥50% A/C/G/T → `PC_RT_NT`; ≥80% standard AA letters → `PC_RT_AA`; else `PC_RT_UNKNOWN`
-  - `pc_msa_encode(msa, rt)` — set `msa->rt = rt` then encode ASCII in-place using `kom_nt4_table` (NT) or `kom_aa20_table` (AA); if `rt == PC_RT_UNKNOWN`, does nothing
-  - `pc_msa_t` fields: `n_pos`, `n_seq`, `rt`, `name` (sequence names), `msa` (`uint8_t**`, position-major layout)
+  - `pc_msa_encode(msa, rt)` — set `msa->rt = rt` and `msa->m`; encode ASCII in-place using `kom_nt4_table` (NT) or `kom_aa20_table` (AA); `-`/`.` → `PC_GAP_NT`/`PC_GAP_AA`; if `rt == PC_RT_UNKNOWN`, does nothing
+  - `pc_msa_filter(msa, min_cnt, is_cds)` — in-place column filter (requires prior encode); keeps columns where at least `min_cnt` sequences have a value `< msa->m`; with `is_cds`, processes and keeps/discards positions as triplets; frees dropped rows
+  - `pc_msa_t` fields: `n_pos`, `n_seq`, `rt`, `m` (alphabet size: 4 NT / 20 AA / 256 unknown), `name` (sequence names), `msa` (`uint8_t**`, position-major layout)
+  - Gap/ambiguous constants: `PC_GAP_NT`=5, `PC_GAP_AA`=23 (defined in `phycfg.h`)
 
 ### Third-party headers
 
@@ -78,7 +81,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`
 
 ## Test Data
 
-`test/{CCNE,TF101005}.{mfa,nhx}.gz` — a transcription factor family dataset:
+`test/CCNE.{mfa,nhx}.gz` — a cyclin E family dataset:
 - `.mfa.gz` — multiple sequence alignment in FASTA format (gzip-compressed)
 - `.nhx.gz` — phylogenetic tree in Newick/NHX format (gzip-compressed)
 
