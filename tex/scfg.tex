@@ -51,7 +51,13 @@ $\sigma(v)$ denotes resides at leaves descended from $v$.
 \end{eqnarray*}
 where
 $$ \alpha'(u,a)\triangleq\sum_b p_u(b|a)\alpha(u,b) $$
-$\alpha(S_0)=\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}$ is the probability of the tree.
+At root $v={\rm root}(T)$, let
+$$ q(a)\triangleq\Pr\{S_0\Rightarrow(v,a)\} $$
+Then
+$$
+\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma(v)\}=\sum_a\Pr\{S_0\Rightarrow(v,a)\stackrel{*}{\Rightarrow}\sigma(v)\}=\sum_aq(a)\alpha(v,a)
+$$
+is the probability of the tree.
 The inside algorithm is equivalent to Felsenstein's algorithm.
 The time complexity is $O(|V|\cdot|\Sigma|^2)$.
 

@@ -25,21 +25,16 @@ typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_AA } pc_restype_t;
 #define PC_GAP_AA 23
 
 typedef struct {
-	int32_t n_pos, n_seq; // number of positions and sequences
+	int32_t len, n_seq; // alignment length and number of sequences
 	pc_restype_t rt; // residue type
 	int32_t m; // size of the alphabet
 	char **name; // sequence names
-	uint8_t **msa; // n_pos rows and n_seq columns
+	uint8_t **msa; // len rows and n_seq columns
 } pc_msa_t;
 
 typedef struct {
 	double h, *alpha, *alpha2, *beta; // pointers point to x[]
-	double x[]; // flexible array member
 } pc_scfg_t;
-
-typedef struct { // transition matrix
-	double p[]; // flexible array member. Of size m*m
-} pc_transmat_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,17 +52,15 @@ pc_tree_t *pc_tree_read(const char *fn);
 int32_t pc_tree_format(const pc_tree_t *t, char **s, int32_t *max);
 
 pc_msa_t *pc_msa_read(const char *fn);
+void pc_msa_destroy(pc_msa_t *msa);
 pc_restype_t pc_msa_infer_rt(const pc_msa_t *msa);
 void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt);
 void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt, int32_t is_cds);
 
 char **pc_list_read(const char *o, int *n_);
 
-pc_scfg_t *pc_scfg_new(int32_t m);
-void pc_scfg_emit(int32_t m, int32_t c, double *alpha);
-double pc_scfg_inside(const pc_tree_t *t, const pc_transmat_t *tm, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd);
-double pc_scfg_outside(const pc_tree_t *t, const pc_transmat_t *tm, int32_t m, pc_scfg_t *sd);
-pc_transmat_t *pc_transmat_new(int32_t m, double d);
+double pc_scfg_inside(const pc_tree_t *t, double **tm, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd);
+void pc_scfg_outside(const pc_tree_t *t, double **tm, int32_t m, pc_scfg_t *sd);
 
 #ifdef __cplusplus
 }

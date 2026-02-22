@@ -7,6 +7,7 @@
 
 int main_view(int argc, char *argv[]);
 int main_msaflt(int argc, char *argv[]);
+int main_scfg(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -14,6 +15,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "Commands:\n");
 	fprintf(fp, "  view       view phylogenetic tree\n");
 	fprintf(fp, "  msaflt     filter MSA columns by non-gap residue count\n");
+	fprintf(fp, "  scfg       SCFG-based phylogenetic analysis\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -25,6 +27,7 @@ int main(int argc, char *argv[])
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "view") == 0) ret = main_view(argc-1, argv+1);
 	else if (strcmp(argv[1], "msaflt") == 0) ret = main_msaflt(argc-1, argv+1);
+	else if (strcmp(argv[1], "scfg") == 0) ret = main_scfg(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", PC_VERSION);
 		return 0;
@@ -121,7 +124,7 @@ int main_msaflt(int argc, char *argv[])
 	int32_t i, j;
 	for (j = 0; j < msa->n_seq; ++j) {
 		printf(">%s\n", msa->name[j]);
-		for (i = 0; i < msa->n_pos; ++i) {
+		for (i = 0; i < msa->len; ++i) {
 			uint8_t v = msa->msa[i][j];
 			char ch;
 			if (rt == PC_RT_NT)
