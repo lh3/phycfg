@@ -4,7 +4,7 @@
 #include "knhx.h"
 #include "phycfg.h"
 #include "khashl.h"
-KHASHL_SET_INIT(KH_LOCAL, strset_t, strset, kh_cstr_t, kh_hash_str, kh_eq_str)
+KHASHL_MAP_INIT(KH_LOCAL, strmap_t, strmap, kh_cstr_t, int32_t, kh_hash_str, kh_eq_str)
 
 pc_node_t *pc_node_new(int32_t n_child)
 {
@@ -30,6 +30,7 @@ pc_tree_t *pc_tree_parse(const char *str, char **en)
 		pc_node_t *p;
 		p = t->node[i] = pc_node_new(q->n);
 		p->ftime = i;
+		p->seq_id = -1;
 		p->name = kom_strdup(q->name);
 		p->d = q->d;
 		for (k = 0; k < p->n_child; ++k) {
@@ -100,18 +101,18 @@ void pc_tree_destroy(pc_tree_t *t)
 void pc_tree_mark_leaf(pc_tree_t *t, int32_t n, char **leaf)
 {
 	int32_t i;
-	strset_t *h;
-	h = strset_init();
+	strmap_t *h;
+	h = strmap_init();
 	for (i = 0; i < n; ++i) {
 		int absent;
-		strset_put(h, leaf[i], &absent);
+		strmap_put(h, leaf[i], &absent);
 	}
 	for (i = 0; i < t->n_node; ++i) {
 		pc_node_t *p = t->node[i];
 		if (p->n_child == 0)
-			p->aux = (strset_get(h, p->name) != kh_end(h)) ? 1 : 0;
+			p->aux = (strmap_get(h, p->name) != kh_end(h)) ? 1 : 0;
 	}
-	strset_destroy(h);
+	strmap_destroy(h);
 }
 
 pc_tree_t *pc_tree_reduce(pc_tree_t *t)
@@ -166,6 +167,28 @@ pc_tree_t *pc_tree_reduce(pc_tree_t *t)
 	s->root = q;
 	pc_tree_sync(s);
 	return s;
+}
+
+int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa)
+{
+	int32_t i, n_unmatch = 0;
+	strmap_t *h;
+	h = strmap_init();
+	for (i = 0; i < msa->n_seq; ++i) {
+		int absent;
+		khint_t k = strmap_put(h, msa->name[i], &absent);
+		kh_val(h, k) = i;
+	}
+	for (i = 0; i < t->n_node; ++i) {
+		pc_node_t *p = t->node[i];
+		if (p->n_child == 0) {
+			khint_t k = strmap_get(h, p->name);
+			if (k != kh_end(h)) p->seq_id = kh_val(h, k);
+			else { p->seq_id = -1; ++n_unmatch; }
+		}
+	}
+	strmap_destroy(h);
+	return n_unmatch;
 }
 
 /**********

@@ -4,7 +4,7 @@ CFLAGS=		-std=c99 -g -Wall -O3
 CXXFLAGS=	$(CFLAGS)
 CPPFLAGS=
 INCLUDES=
-LOBJS=		kommon.o knhx.o tree.o io.o msa.o
+LOBJS=		kommon.o knhx.o tree.o io.o msa.o scfg.o
 AOBJS=
 PROG=		phycfg
 LIBS=		-lpthread -lz -lm

@@ -5,17 +5,11 @@
 
 #include <stdint.h>
 
-typedef struct {
-	double h, *alpha, *alpha2, *beta, *eta; // pointers point to x[]
-	double x[];
-} pc_scfg_t;
-
 typedef struct pc_node_s {
 	int32_t n_child, ftime;
-	int64_t aux;
+	int32_t aux, seq_id;
 	double d;
 	char *name;
-	void *ptr;
 	struct pc_node_s *parent;
 	struct pc_node_s *child[];
 } pc_node_t, *pc_node_p;
@@ -38,6 +32,15 @@ typedef struct {
 	uint8_t **msa; // n_pos rows and n_seq columns
 } pc_msa_t;
 
+typedef struct {
+	double h, *alpha, *alpha2, *beta; // pointers point to x[]
+	double x[]; // flexible array member
+} pc_scfg_t;
+
+typedef struct { // transition matrix
+	double p[]; // flexible array member. Of size m*m
+} pc_transmat_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,6 +51,7 @@ void pc_tree_sync(pc_tree_t *t);
 void pc_tree_destroy(pc_tree_t *t);
 void pc_tree_mark_leaf(pc_tree_t *t, int32_t n, char **leaf);
 pc_tree_t *pc_tree_reduce(pc_tree_t *t);
+int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa);
 
 pc_tree_t *pc_tree_read(const char *fn);
 int32_t pc_tree_format(const pc_tree_t *t, char **s, int32_t *max);
@@ -58,6 +62,12 @@ void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt);
 void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt, int32_t is_cds);
 
 char **pc_list_read(const char *o, int *n_);
+
+pc_scfg_t *pc_scfg_new(int32_t m);
+void pc_scfg_emit(int32_t m, int32_t c, double *alpha);
+double pc_scfg_inside(const pc_tree_t *t, const pc_transmat_t *tm, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd);
+double pc_scfg_outside(const pc_tree_t *t, const pc_transmat_t *tm, int32_t m, pc_scfg_t *sd);
+pc_transmat_t *pc_transmat_new(int32_t m, double d);
 
 #ifdef __cplusplus
 }
