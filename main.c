@@ -6,12 +6,14 @@
 #include "ketopt.h"
 
 int main_view(int argc, char *argv[]);
+int main_msaflt(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
 	fprintf(fp, "Usage: phycfg <command> <arguments>\n");
 	fprintf(fp, "Commands:\n");
 	fprintf(fp, "  view       view phylogenetic tree\n");
+	fprintf(fp, "  msaflt     filter MSA columns by non-gap residue count\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -22,6 +24,7 @@ int main(int argc, char *argv[])
 	kom_realtime();
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "view") == 0) ret = main_view(argc-1, argv+1);
+	else if (strcmp(argv[1], "msaflt") == 0) ret = main_msaflt(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", PC_VERSION);
 		return 0;
@@ -88,5 +91,48 @@ int main_view(int argc, char *argv[])
 		if (out != tree) pc_tree_destroy(out);
 	}
 	pc_tree_destroy(tree);
+	return 0;
+}
+
+int main_msaflt(int argc, char *argv[])
+{
+	int32_t min_cnt = 1, is_cds = 0;
+	ketopt_t o = KETOPT_INIT;
+	int c;
+	while ((c = ketopt(&o, argc, argv, 1, "m:c", 0)) >= 0) {
+		if      (c == 'm') min_cnt = atoi(o.arg);
+		else if (c == 'c') is_cds = 1;
+	}
+	if (o.ind == argc) {
+		fprintf(stderr, "Usage: phycfg msaflt [options] <aln.mfa.gz>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -m INT   min non-gap/non-ambiguous residues per column [1]\n");
+		fprintf(stderr, "  -c       treat as CDS; filter whole codons\n");
+		return 1;
+	}
+
+	pc_msa_t *msa = pc_msa_read(argv[o.ind]);
+	if (msa == NULL) return 1;
+
+	pc_restype_t rt = pc_msa_infer_rt(msa);
+	pc_msa_encode(msa, rt);
+	pc_msa_filter(msa, min_cnt, is_cds);
+
+	int32_t i, j;
+	for (j = 0; j < msa->n_seq; ++j) {
+		printf(">%s\n", msa->name[j]);
+		for (i = 0; i < msa->n_pos; ++i) {
+			uint8_t v = msa->msa[i][j];
+			char ch;
+			if (rt == PC_RT_NT)
+				ch = v < 4 ? "ACGT"[v] : v == 4 ? 'N' : '-';
+			else if (rt == PC_RT_AA)
+				ch = v <= 21 ? kom_aa_i2c[v] : v == 22 ? 'X' : '-';
+			else
+				ch = (char)v; /* RT_UNKNOWN: still raw ASCII */
+			putchar(ch);
+		}
+		putchar('\n');
+	}
 	return 0;
 }

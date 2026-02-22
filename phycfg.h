@@ -6,7 +6,8 @@
 #include <stdint.h>
 
 typedef struct {
-	double *p, *alpha, *alpha2, *beta, h;
+	double h, *alpha, *alpha2, *beta, *eta; // pointers point to x[]
+	double x[];
 } pc_scfg_t;
 
 typedef struct pc_node_s {
@@ -25,6 +26,9 @@ typedef struct {
 } pc_tree_t;
 
 typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_AA } pc_restype_t;
+
+#define PC_GAP_NT 5
+#define PC_GAP_AA 23
 
 typedef struct {
 	int32_t n_pos, n_seq; // number of positions and sequences
@@ -51,6 +55,7 @@ int32_t pc_tree_format(const pc_tree_t *t, char **s, int32_t *max);
 pc_msa_t *pc_msa_read(const char *fn);
 pc_restype_t pc_msa_infer_rt(const pc_msa_t *msa);
 void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt);
+void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt, int32_t is_cds);
 
 char **pc_list_read(const char *o, int *n_);
 
