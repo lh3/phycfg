@@ -5,6 +5,10 @@
 
 #include <stdint.h>
 
+typedef struct {
+	double *p, *alpha, *alpha2, *beta, h;
+} pc_scfg_t;
+
 typedef struct pc_node_s {
 	int32_t n_child, ftime;
 	int64_t aux;
@@ -25,6 +29,7 @@ typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_AA } pc_restype_t;
 typedef struct {
 	int32_t n_pos, n_seq; // number of positions and sequences
 	pc_restype_t rt; // residue type
+	int32_t m; // size of the alphabet
 	char **name; // sequence names
 	uint8_t **msa; // n_pos rows and n_seq columns
 } pc_msa_t;

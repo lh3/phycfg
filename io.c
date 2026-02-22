@@ -63,6 +63,7 @@ pc_msa_t *pc_msa_read(const char *fn)
 	msa->n_seq = n;
 	msa->n_pos = n_pos;
 	msa->rt = PC_RT_UNKNOWN;
+	msa->m = 256;
 	msa->name = name;
 	name = NULL; /* ownership transferred */
 	msa->msa = kom_malloc(uint8_t*, n_pos);

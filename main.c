@@ -44,14 +44,18 @@ int main(int argc, char *argv[])
 int main_view(int argc, char *argv[])
 {
 	const char *list_fn = NULL;
+	int print_leaf = 0;
 	ketopt_t o = KETOPT_INIT;
 	int c;
-	while ((c = ketopt(&o, argc, argv, 1, "l:", 0)) >= 0)
-		if (c == 'l') list_fn = o.arg;
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:", 0)) >= 0) {
+		if      (c == 'l') list_fn = o.arg;
+		else if (c == 'L') print_leaf = 1;
+	}
 
 	if (o.ind == argc) {
 		fprintf(stderr, "Usage: phycfg view [options] <tree.nhx.gz>\n");
 		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -L       print leaf names, one per line\n");
 		fprintf(stderr, "  -l STR   list of leaf names to mark (comma/space-sep, or @file)\n");
 		return 1;
 	}
@@ -69,11 +73,18 @@ int main_view(int argc, char *argv[])
 
 	pc_tree_t *out = list_fn ? pc_tree_reduce(tree) : tree;
 	if (out) {
-		char *s = NULL;
-		int32_t max = 0;
-		pc_tree_format(out, &s, &max);
-		puts(s);
-		free(s);
+		if (print_leaf) {
+			int32_t i;
+			for (i = 0; i < out->n_node; ++i)
+				if (out->node[i]->n_child == 0)
+					puts(out->node[i]->name);
+		} else {
+			char *s = NULL;
+			int32_t max = 0;
+			pc_tree_format(out, &s, &max);
+			puts(s);
+			free(s);
+		}
 		if (out != tree) pc_tree_destroy(out);
 	}
 	pc_tree_destroy(tree);

@@ -28,9 +28,9 @@ void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt)
 	int32_t i, j;
 	const uint8_t *tab;
 
-	msa->rt = rt;
-	if (msa->rt == PC_RT_NT)      tab = kom_nt4_table;
-	else if (msa->rt == PC_RT_AA) tab = kom_aa20_table;
+	msa->rt = rt, msa->m = 256;
+	if (msa->rt == PC_RT_NT)      tab = kom_nt4_table, msa->m = 4;
+	else if (msa->rt == PC_RT_AA) tab = kom_aa20_table, msa->m = 20;
 	else return;
 
 	for (i = 0; i < msa->n_pos; ++i)
