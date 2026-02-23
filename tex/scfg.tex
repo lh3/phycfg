@@ -159,7 +159,7 @@ $$ \tilde\alpha(v,a) \triangleq\frac{\alpha(v,a)}{\prod_{v'\in T_v}h(v')} $$
 $$ \tilde\beta(u,b)  \triangleq\frac{\beta(u,b)}{h(u)\prod_{u'\in T\setminus T_u}h(u')} $$
 $$ \tilde\alpha'(v,a)\triangleq\frac{\alpha'(v,a)}{\prod_{v'\in T_v}h(v')}=\sum_b p_u(b|a)\tilde\alpha(u,b) $$
 $$ \tilde\eta_u(b|a) \triangleq\frac{\eta_u(b|a)}{\prod_{u'\in T}h(u')}
-= \frac{1}{h(u)}\tilde\beta(v,a)\cdot\tilde\alpha'(x,b)\tilde\alpha'(y,b)\tilde\alpha'(w,a)$$
+= \frac{1}{h(u)}\tilde\beta(v,a)\cdot\tilde\alpha'(x,b)\tilde\alpha'(y,b)\tilde\alpha'(w,a) = \tilde\beta(v,a)\tilde\alpha(u,b)\tilde\alpha'(w,a) $$
 We can prove
 $$ \tilde\alpha(v,a)=\frac{1}{h(v)}\sum_{b,c}p_u(b|a)p_w(c|a)\tilde\alpha(u,b)\tilde\alpha(w,c)=\frac{1}{h(v)}\tilde\alpha'(u,b)\tilde\alpha'(w,c) $$
 $$ \tilde\beta(u,b)=\frac{1}{h(u)}\sum_{a,c}p_u(b|a)p_w(c|a)\tilde\beta(v,a)\tilde\alpha(w,c)=\frac{1}{h(u)}\sum_ap_u(b|a)\tilde\beta(v,a)\tilde\alpha'(w,a) $$
