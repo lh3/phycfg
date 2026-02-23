@@ -7,7 +7,7 @@
 
 typedef struct pc_node_s {
 	int32_t n_child, ftime;
-	int32_t aux, seq_id;
+	int32_t seq_id;
 	double d;
 	char *name;
 	struct pc_node_s *parent;
@@ -44,8 +44,8 @@ pc_tree_t *pc_tree_parse(const char *str, char **en);
 int pc_tree_expand(const pc_node_t *root, pc_node_t **node);
 void pc_tree_sync(pc_tree_t *t);
 void pc_tree_destroy(pc_tree_t *t);
-void pc_tree_mark_leaf(pc_tree_t *t, int32_t n, char **leaf);
-pc_tree_t *pc_tree_reduce(pc_tree_t *t);
+void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark);
+pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark);
 int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa);
 
 pc_tree_t *pc_tree_read(const char *fn);

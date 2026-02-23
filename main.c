@@ -69,15 +69,17 @@ int main_view(int argc, char *argv[])
 	pc_tree_t *tree = pc_tree_read(argv[o.ind]);
 	if (tree == NULL) return 1;
 
+	uint8_t *mark = NULL;
 	if (list_fn) {
 		int nl;
 		char **list = pc_list_read(list_fn, &nl);
-		pc_tree_mark_leaf(tree, nl, list);
+		mark = kom_calloc(uint8_t, tree->n_node);
+		pc_tree_mark_leaf(tree, nl, list, mark);
 		for (int i = 0; i < nl; i++) free(list[i]);
 		free(list);
 	}
 
-	pc_tree_t *out = list_fn ? pc_tree_reduce(tree) : tree;
+	pc_tree_t *out = list_fn ? pc_tree_reduce(tree, mark) : tree;
 	if (out) {
 		if (print_leaf) {
 			int32_t i;
@@ -93,6 +95,7 @@ int main_view(int argc, char *argv[])
 		}
 		if (out != tree) pc_tree_destroy(out);
 	}
+	free(mark);
 	pc_tree_destroy(tree);
 	return 0;
 }

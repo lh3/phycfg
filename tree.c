@@ -98,7 +98,7 @@ void pc_tree_destroy(pc_tree_t *t)
 	free(t);
 }
 
-void pc_tree_mark_leaf(pc_tree_t *t, int32_t n, char **leaf)
+void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark)
 {
 	int32_t i;
 	strmap_t *h;
@@ -108,14 +108,13 @@ void pc_tree_mark_leaf(pc_tree_t *t, int32_t n, char **leaf)
 		strmap_put(h, leaf[i], &absent);
 	}
 	for (i = 0; i < t->n_node; ++i) {
-		pc_node_t *p = t->node[i];
-		if (p->n_child == 0)
-			p->aux = (strmap_get(h, p->name) != kh_end(h)) ? 1 : 0;
+		const pc_node_t *p = t->node[i];
+		mark[i] = (p->n_child == 0 && strmap_get(h, p->name) != kh_end(h));
 	}
 	strmap_destroy(h);
 }
 
-pc_tree_t *pc_tree_reduce(pc_tree_t *t)
+pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark)
 {
 	int32_t i, n_marked = 0, max_child = 0, *a;
 	pc_tree_t *s = 0;
@@ -124,7 +123,7 @@ pc_tree_t *pc_tree_reduce(pc_tree_t *t)
 	for (i = 0; i < t->n_node; ++i) {
 		sub[i] = 0;
 		max_child = max_child > t->node[i]->n_child? max_child : t->node[i]->n_child;
-		if (t->node[i]->n_child == 0 && t->node[i]->aux > 0)
+		if (t->node[i]->n_child == 0 && mark[i])
 			++n_marked;
 	}
 	if (n_marked == 0) {
@@ -135,7 +134,7 @@ pc_tree_t *pc_tree_reduce(pc_tree_t *t)
 	for (i = 0; i < t->n_node; ++i) {
 		p = t->node[i];
 		if (p->n_child == 0) {
-			if (p->aux <= 0) continue;
+			if (!mark[i]) continue;
 			q = pc_node_new(0);
 			q->name = kom_strdup(p->name);
 			q->d = p->d;
