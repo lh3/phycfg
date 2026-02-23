@@ -66,7 +66,7 @@ static inline void pc_scfg_emit(int32_t m, int32_t c, double *alpha)
 double pc_scfg_inside(const pc_tree_t *t, double **p, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd)
 {
 	int32_t i, k, a, b, m = msa->m;
-	double logh = 0.0;
+	double logh = 0.0, sum;
 	for (i = 0; i < t->n_node; ++i) {
 		const pc_node_t *v = t->node[i]; /* post-order */
 		double *alpha = sd[i].alpha, *alpha2 = sd[i].alpha2, h;
@@ -93,7 +93,9 @@ double pc_scfg_inside(const pc_tree_t *t, double **p, const pc_msa_t *msa, int32
 		sd[i].h = h;
 		logh += log(h);
 	}
-	return logh;
+	for (a = 0, sum = 0.0; a < m; ++a)
+		sum += sd[t->n_node - 1].alpha[a] * p[t->n_node - 1][a];
+	return logh + log(sum); // this is equal to logh + log(h(root) * \sum_a alpha~(root,a) * beta~(root,a))
 }
 
 void pc_scfg_outside(const pc_tree_t *t, double **p, int32_t m, pc_scfg_t *sd)
@@ -133,14 +135,15 @@ void pc_scfg_outside(const pc_tree_t *t, double **p, int32_t m, pc_scfg_t *sd)
 double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_scfg_t *sd)
 {
 	int32_t i, j, k, a, b, m = msa->m;
-	double logh = 0.0, loglk = 0.0;
+	double loglk = 0.0;
 	double *cnt = kom_calloc(double, (size_t)t->n_node * m * m);
 	double *tmp = kom_calloc(double, m * m);
 	double *sib = kom_malloc(double, m);
 
 	/* E step: accumulate sufficient statistics over all alignment columns */
 	for (i = 0; i < msa->len; ++i) {
-		double sum, *cnt_j, logh = pc_scfg_inside(t, p, msa, i, sd);
+		double sum, *cnt_j;
+		loglk += pc_scfg_inside(t, p, msa, i, sd);
 		pc_scfg_outside(t, p, m, sd);
 		/* for each non-root branch, accumulate cnt[j][a*m+b] =
 		 * p(b|a) * alpha~(u,b) * beta~(par,a) * prod_k alpha'~(sib_k,a) */
@@ -174,7 +177,6 @@ double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_
 		for (a = 0; a < m; ++a)
 			for (b = 0; b < m; ++b)
 				cnt_j[a*m + b] += sd[j].alpha[b] * sd[j].beta[b] * sum;
-		loglk += logh + log(sd[t->n_node - 1].h);
 	}
 
 	/* M step: renormalize each row of p from accumulated counts */
