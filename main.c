@@ -8,6 +8,7 @@
 int main_view(int argc, char *argv[]);
 int main_msaflt(int argc, char *argv[]);
 int main_scfg(int argc, char *argv[]);
+int main_reroot(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -15,6 +16,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "Commands:\n");
 	fprintf(fp, "  view       view phylogenetic tree\n");
 	fprintf(fp, "  msaflt     filter MSA columns by non-gap residue count\n");
+	fprintf(fp, "  reroot     reroot a tree (mid-point by default)\n");
 	fprintf(fp, "  scfg       SCFG-based phylogenetic analysis\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
@@ -27,6 +29,7 @@ int main(int argc, char *argv[])
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "view") == 0) ret = main_view(argc-1, argv+1);
 	else if (strcmp(argv[1], "msaflt") == 0) ret = main_msaflt(argc-1, argv+1);
+	else if (strcmp(argv[1], "reroot") == 0) ret = main_reroot(argc-1, argv+1);
 	else if (strcmp(argv[1], "scfg") == 0) ret = main_scfg(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", PC_VERSION);
@@ -140,5 +143,62 @@ int main_msaflt(int argc, char *argv[])
 		}
 		putchar('\n');
 	}
+	return 0;
+}
+
+int main_reroot(int argc, char *argv[])
+{
+	const char *list_fn = NULL;
+	ketopt_t o = KETOPT_INIT;
+	int c;
+	while ((c = ketopt(&o, argc, argv, 1, "l:", 0)) >= 0) {
+		if (c == 'l') list_fn = o.arg;
+	}
+	if (o.ind == argc) {
+		fprintf(stderr, "Usage: phycfg reroot [options] <tree.nhx.gz>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -l STR   root at midpoint of branch to LCA of listed leaves []\n");
+		return 1;
+	}
+
+	pc_tree_t *tree = pc_tree_read(argv[o.ind]);
+	if (tree == NULL) return 1;
+
+	int32_t nid;
+	double dist = -1.0;  /* -1 tells pc_tree_reroot_core to use branch midpoint */
+
+	if (list_fn) {
+		/* Root at midpoint of the branch leading to the LCA of the given leaves */
+		int nl;
+		char **list = pc_list_read(list_fn, &nl);
+		uint8_t *mark = kom_calloc(uint8_t, tree->n_node);
+		pc_tree_mark_leaf(tree, nl, list, mark);
+		for (int i = 0; i < nl; i++) free(list[i]);
+		free(list);
+		nid = pc_tree_lca(tree, mark);
+		free(mark);
+		if (nid < 0) {
+			fprintf(stderr, "[E::%s] no leaves matched\n", __func__);
+			pc_tree_destroy(tree);
+			return 1;
+		}
+	} else {
+		/* Global midpoint root: find the node on the diameter midpoint branch */
+		nid = pc_tree_mid_longest(tree, &dist);
+		if (nid < 0) {
+			fprintf(stderr, "[E::%s] tree has fewer than two leaves\n", __func__);
+			pc_tree_destroy(tree);
+			return 1;
+		}
+	}
+
+	pc_tree_reroot(tree, nid, dist);
+
+	char *s = NULL;
+	int32_t max = 0;
+	pc_tree_format(tree, &s, &max);
+	puts(s);
+	free(s);
+	pc_tree_destroy(tree);
 	return 0;
 }
