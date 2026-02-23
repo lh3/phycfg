@@ -194,14 +194,27 @@ double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_
 	return loglk;
 }
 
+double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter, double **p, pc_scfg_t *sd)
+{
+	int32_t k;
+	double loglk;
+	pc_transmat_init(p, msa->m, t);
+	for (k = 0; k < max_iter; ++k)
+		loglk = pc_scfg_em_basic(t, p, msa, sd);
+	return loglk;
+}
+
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i;
+	int32_t i, reroot = 0, max_iter = 20;
 	pc_scfg_t *sd;
 	double **p;
 
-	while (ketopt(&o, argc, argv, 1, "", 0) >= 0);
+	while (ketopt(&o, argc, argv, 1, "rm:", 0) >= 0) {
+		if (o.opt == 'r') reroot = 1;
+		else if (o.opt == 'm') max_iter = atoi(o.arg);
+	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
 		return 1;
@@ -217,31 +230,41 @@ int main_scfg(int argc, char *argv[])
 	pc_tree_match_msa(t, msa);
 	sd = pc_scfg_new(t->n_node, msa->m);
 	p = pc_mat2d_new(t->n_node, msa->m * msa->m);
-	pc_transmat_init(p, msa->m, t);
-	#if 1
-	for (i = 0; i < 10; ++i) {
-		double loglk = pc_scfg_em_basic(t, p, msa, sd);
-		printf("LK\t%.6f\n", loglk);
-	}
-	printf("BF");
-	for (i = 0; i < msa->m; ++i) printf("\t%.4f", p[t->n_node-1][i]);
-	printf("\n");
-	#else
-	//for (i = 0; i < msa->len; ++i) {
-	{
-		i = msa->len>>1;
-		int32_t j, a;
-		pc_scfg_inside(t, p, msa, i, sd);
-		pc_scfg_outside(t, p, msa->m, sd);
-		for (j = 0; j < t->n_node; ++j) {
-			double x = 0.0;
-			for (a = 0; a < msa->m; ++a)
-				x += sd[j].alpha[a] * sd[j].beta[a];
-			printf("%d\t%d\t%g\t%g\n", i, j, x * sd[j].h, sd[j].h);
-		}
-	}
-	#endif
 
+	if (reroot) { // try all the other roots, perform EM and calculate loglk
+		int32_t max_i = -1;
+		double max_lk = -1e300;
+		for (i = 0; i < t->n_node; ++i) {
+			double loglk;
+			pc_tree_t *s = pc_tree_clone(t); // don't touch t
+			pc_tree_reroot(s, i, -1.0);
+			loglk = pc_scfg_em_iter(s, msa, max_iter, p, sd);
+			if (max_lk < loglk) max_lk = loglk, max_i = i;
+			fprintf(stderr, "RT\t%d\t%.6f\n", i, loglk);
+			pc_tree_destroy(s);
+		}
+		if (max_i >= 0) {
+			char *str = NULL;
+			int32_t max = 0;
+			pc_tree_t *s = pc_tree_clone(t);
+			pc_tree_reroot(s, max_i, -1.0);
+			pc_tree_format(s, &str, &max);
+			puts(str);
+			free(str);
+			pc_tree_destroy(s);
+		}
+	} else {
+		pc_transmat_init(p, msa->m, t);
+		for (i = 0; i < max_iter; ++i) {
+			double loglk = pc_scfg_em_basic(t, p, msa, sd);
+			printf("LK\t%.6f\n", loglk);
+		}
+		printf("BF");
+		for (i = 0; i < msa->m; ++i) printf("\t%.4f", p[t->n_node-1][i]);
+		printf("\n");
+	}
+
+	free(p); free(sd);
 	pc_tree_destroy(t);
 	pc_msa_destroy(msa);
 	return 0;
