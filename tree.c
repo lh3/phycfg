@@ -86,6 +86,39 @@ void pc_tree_sync(pc_tree_t *t)
 		t->node[i]->ftime = i;
 }
 
+pc_tree_t *pc_tree_clone(const pc_tree_t *t)
+{
+	int32_t i, k;
+	pc_tree_t *c;
+	pc_node_t **map;  /* map[i] = new node corresponding to t->node[i] */
+
+	c = kom_calloc(pc_tree_t, 1);
+	c->n_node = t->n_node;
+	map = c->node = kom_malloc(pc_node_t*, t->n_node);
+
+	/* Allocate and copy each node's scalar fields */
+	for (i = 0; i < t->n_node; ++i) {
+		const pc_node_t *s = t->node[i];
+		pc_node_t *d = map[i] = pc_node_new(s->n_child);
+		d->ftime  = s->ftime;
+		d->seq_id = s->seq_id;
+		d->d      = s->d;
+		d->name   = s->name ? kom_strdup(s->name) : NULL;
+	}
+
+	/* Wire up parent and child pointers using ftime as the map key */
+	for (i = 0; i < t->n_node; ++i) {
+		const pc_node_t *s = t->node[i];
+		pc_node_t *d = map[i];
+		d->parent = s->parent ? map[s->parent->ftime] : NULL;
+		for (k = 0; k < s->n_child; ++k)
+			d->child[k] = map[s->child[k]->ftime];
+	}
+
+	c->root = map[t->root->ftime];
+	return c;
+}
+
 void pc_tree_destroy(pc_tree_t *t)
 {
 	int32_t i;
