@@ -46,6 +46,7 @@ void pc_tree_sync(pc_tree_t *t);
 void pc_tree_destroy(pc_tree_t *t);
 void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark);
 pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark);
+int32_t pc_tree_lca(const pc_tree_t *t, const uint8_t *mark);
 int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa);
 
 pc_tree_t *pc_tree_read(const char *fn);

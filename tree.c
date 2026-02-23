@@ -190,6 +190,27 @@ int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa)
 	return n_unmatch;
 }
 
+int32_t pc_tree_lca(const pc_tree_t *t, const uint8_t *mark)
+{
+	int32_t i, k, total = 0, lca = -1;
+	int32_t *cnt;
+	for (i = 0; i < t->n_node; ++i) total += mark[i];
+	if (total == 0) return -1;
+	cnt = kom_calloc(int32_t, t->n_node);
+	for (i = 0; i < t->n_node && lca < 0; ++i) {
+		const pc_node_t *v = t->node[i];
+		if (v->n_child == 0) {
+			cnt[i] = mark[i];
+		} else {
+			for (k = 0; k < v->n_child; ++k)
+				cnt[i] += cnt[v->child[k]->ftime];
+		}
+		if (cnt[i] == total) lca = i;
+	}
+	free(cnt);
+	return lca;
+}
+
 /**********
  * Format *
  **********/
