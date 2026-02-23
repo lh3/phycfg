@@ -211,6 +211,63 @@ int32_t pc_tree_lca(const pc_tree_t *t, const uint8_t *mark)
 	return lca;
 }
 
+/* Find the node whose incoming branch contains the midpoint of the longest
+ * leaf-to-leaf path (tree diameter). Returns that node's ftime, or -1 if
+ * the tree has fewer than two leaves. Writes the diameter to *longest. */
+int32_t pc_tree_mid_longest(const pc_tree_t *t, double *longest)
+{
+	int32_t i, k, lca_idx = -1, b1_idx = -1, b2_idx = -1;
+	double diam = -1.0;
+	/* max_down[i]: max distance from node i to any leaf in its subtree;
+	 * best_child[i]: child ftime on that deepest path (-1 for leaves) */
+	double  *max_down   = kom_calloc(double,   t->n_node);
+	int32_t *best_child = kom_malloc(int32_t,  t->n_node);
+	for (i = 0; i < t->n_node; ++i) best_child[i] = -1;
+
+	/* Single post-order pass: compute max_down and track the diameter. */
+	for (i = 0; i < t->n_node; ++i) {
+		const pc_node_t *v = t->node[i];
+		double top1 = -1.0, top2 = -1.0;   /* two deepest child depths */
+		int32_t c1 = -1, c2 = -1;
+		for (k = 0; k < v->n_child; ++k) {
+			const pc_node_t *ck = v->child[k];
+			double d   = ck->d > 0.0 ? ck->d : 0.0;
+			double dep = d + max_down[ck->ftime];
+			if (dep >= top1) { top2=top1; c2=c1; top1=dep; c1=ck->ftime; }
+			else if (dep > top2) { top2=dep; c2=ck->ftime; }
+		}
+		if (c1 >= 0) { max_down[i] = top1; best_child[i] = c1; }
+		/* A path through v using its two deepest subtrees is a candidate diameter. */
+		if (c1 >= 0 && c2 >= 0 && top1 + top2 > diam) {
+			diam=top1+top2; lca_idx=i; b1_idx=c1; b2_idx=c2;
+		}
+	}
+
+	if (lca_idx < 0) {   /* fewer than two leaves */
+		free(max_down); free(best_child);
+		if (longest) *longest = 0.0;
+		return -1;
+	}
+	if (longest) *longest = diam;
+
+	/* d1: distance from LCA to the leaf1 end of the diameter path */
+	double d1   = (t->node[b1_idx]->d > 0.0 ? t->node[b1_idx]->d : 0.0) + max_down[b1_idx];
+	double half = diam / 2.0;
+	/* Descend from the LCA toward whichever leaf is farther from the midpoint. */
+	int32_t curr   = (half <= d1) ? b1_idx : b2_idx;
+	double  target = (half <= d1) ? (d1 - half) : (half - d1);
+	double  accum  = 0.0;
+	/* Walk down best_child[] until we reach the branch containing the midpoint. */
+	while (1) {
+		double edge = t->node[curr]->d > 0.0 ? t->node[curr]->d : 0.0;
+		if (accum + edge >= target) break;
+		accum += edge;
+		curr = best_child[curr];
+	}
+	free(max_down); free(best_child);
+	return curr;
+}
+
 /**********
  * Format *
  **********/
