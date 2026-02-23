@@ -24,16 +24,17 @@ Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not
 
 ### Command dispatch
 
-`main.c` is the entry point and also contains `main_view()` and `main_msaflt()`. It dispatches subcommands:
+`main.c` is the entry point and also contains `main_view()` and `main_msaflt()`. `main_scfg()` lives in `scfg.c`. It dispatches subcommands:
 - `view` → `main_view()` at the bottom of `main.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
 - `msaflt` → `main_msaflt()`; reads a gzip'd FASTA MSA, infers residue type, encodes, filters columns, and writes decoded FASTA to stdout; accepts `-m INT` (min non-gap/non-ambiguous residues per column, default 1) and `-c` (treat as CDS, filter whole codons)
+- `scfg` → `main_scfg()` in `scfg.c`; reads tree and MSA, encodes, matches sequences to leaves, runs EM to estimate branch transition matrices, prints per-iteration log likelihood
 - `version` → prints `PC_VERSION` from `phycfg.h`
 
 When `kom_verbose >= 3` and the command succeeds, timing/resource info is printed to stderr.
 
 ### Library (`libphycfg.a`)
 
-Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`.
+Object files archived: `kommon.o knhx.o tree.o io.o msa.o scfg.o`. Linked with `main.o`.
 
 - **`kommon.c`/`kommon.h`** — general-purpose utilities:
   - Memory macros: `kom_malloc`, `kom_calloc`, `kom_realloc`, `kom_grow` (dynamic array growth with 1.5× expansion)
@@ -51,7 +52,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`
   - Used only by `pc_tree_parse` in `tree.c`; not part of the public API
 
 - **`tree.c`** — primary tree data structures and operations (declared in `phycfg.h`):
-  - `pc_node_t` fields: `n_child`, `ftime` (post-order index), `aux` (caller tag), `d` (branch length, -1.0 if absent), `name`, `ptr`, `parent`, `child[]` (flexible array)
+  - `pc_node_t` fields: `n_child`, `ftime` (post-order index), `aux` (caller tag), `seq_id` (index into `pc_msa_t::name`, -1 if unmatched), `d` (branch length, -1.0 if absent), `name`, `parent`, `child[]` (flexible array)
   - `pc_tree_t` fields: `n_node`, `root`, `node` (pointer array in post-order; `node[i]->ftime == i`)
   - `pc_tree_parse(str, &end)` — parse Newick/NHX string via `kn_parse`, convert to `pc_tree_t`
   - `pc_tree_expand(root, node)` — post-order traversal; pass `node=NULL` to count, non-NULL to fill
@@ -70,14 +71,24 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o`. Linked with `main.o`
   - `pc_msa_infer_rt(msa)` — infer `pc_restype_t` from letter frequencies: ≥50% A/C/G/T → `PC_RT_NT`; ≥80% standard AA letters → `PC_RT_AA`; else `PC_RT_UNKNOWN`
   - `pc_msa_encode(msa, rt)` — set `msa->rt = rt` and `msa->m`; encode ASCII in-place using `kom_nt4_table` (NT) or `kom_aa20_table` (AA); `-`/`.` → `PC_GAP_NT`/`PC_GAP_AA`; if `rt == PC_RT_UNKNOWN`, does nothing
   - `pc_msa_filter(msa, min_cnt, is_cds)` — in-place column filter (requires prior encode); keeps columns where at least `min_cnt` sequences have a value `< msa->m`; with `is_cds`, processes and keeps/discards positions as triplets; frees dropped rows
-  - `pc_msa_t` fields: `n_pos`, `n_seq`, `rt`, `m` (alphabet size: 4 NT / 20 AA / 256 unknown), `name` (sequence names), `msa` (`uint8_t**`, position-major layout)
+  - `pc_msa_destroy(msa)` — free all name strings, row arrays, and the struct itself; NULL-safe
+  - `pc_msa_t` fields: `len` (alignment length / number of columns), `n_seq`, `rt`, `m` (alphabet size: 4 NT / 20 AA / 256 unknown), `name` (sequence names), `msa` (`uint8_t**`, position-major: `msa[pos][seq]`)
   - Gap/ambiguous constants: `PC_GAP_NT`=5, `PC_GAP_AA`=23 (defined in `phycfg.h`)
+
+- **`scfg.c`** — SCFG algorithms and the `scfg` subcommand (functions declared in `phycfg.h` where externally visible):
+  - `pc_scfg_t` fields: `h` (per-node scaling factor), `*alpha` (α̃), `*alpha2` (α̃'), `*beta` (β̃) — all pointers into a single flat allocation; NOT a flexible-array struct
+  - `pc_scfg_new(n_node, m)` — allocates one contiguous block for an array of `n_node` `pc_scfg_t` headers followed by `3*n_node*m` doubles; sets each node's three pointers into the data region
+  - `pc_mat2d_new(n_row, n_col)` — allocates a 2D `double**` with row pointers and data in one flat block; used for transition matrices
+  - `pc_transmat_init(p, m, t)` — fills `p[k]` (m×m, row-major, `p[k][a*m+b] = P(b|a)`) for each node k; non-root nodes get JC model from `t->node[k]->d` (clamped to ≥1e-3); root node gets flat `1/m` for all entries (encodes q(a))
+  - `pc_scfg_inside(t, p, msa, pos, sd)` — inside (Felsenstein) pass for column `pos`; requires binary tree (`assert n_child∈{0,2}`); requires `seq_id≥0` on all leaves; returns `Σ_v log h(v) + log(Σ_a α̃(root,a)·q(a))` = log P(column)
+  - `pc_scfg_outside(t, p, m, sd)` — outside pass (must follow inside); initializes β̃(root,a) = p[root][a]/h_root = q(a)/h_root; propagates β̃ downward using α̃' from inside; returns void
+  - `pc_scfg_em_basic(t, p, msa, sd)` — one EM round over the full MSA: E-step accumulates per-branch normalized sufficient statistics (including root/prior row); M-step renormalizes each transition row in-place; returns total log likelihood `Σ_pos log P(pos)`
 
 ### Third-party headers
 
 - **`kseq.h`** — macro-based streaming FASTA/Q + kstream parser from [klib](https://github.com/attractivechaos/klib) (MIT). Instantiated in `io.c` via `KSEQ_INIT(gzFile, gzread)`.
 - **`khashl.h`** — open-addressing hash table from klib (MIT). Used in `tree.c` for `pc_tree_mark_leaf`.
-- **`ketopt.h`** — command-line option parser. Used in `main.c`.
+- **`ketopt.h`** — command-line option parser. Used in `main.c` and `scfg.c`.
 
 ## Test Data
 
