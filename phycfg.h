@@ -48,6 +48,8 @@ void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark
 pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark);
 int32_t pc_tree_lca(const pc_tree_t *t, const uint8_t *mark);
 int32_t pc_tree_mid_longest(const pc_tree_t *t, double *dist_to_mid);
+pc_node_t *pc_tree_reroot_core(pc_node_t *root, pc_node_t *p0, double dist);
+void pc_tree_reroot(pc_tree_t *t, int32_t nid, double dist);
 int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa);
 
 pc_tree_t *pc_tree_read(const char *fn);

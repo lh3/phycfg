@@ -271,6 +271,85 @@ int32_t pc_tree_mid_longest(const pc_tree_t *t, double *dist_to_mid)
 	return curr;
 }
 
+/* Place the root on the branch leading to p0 and return the new root. The
+ * distance from p0 to the new root is dist */
+pc_node_t *pc_tree_reroot_core(pc_node_t *root, pc_node_t *p0, double dist)
+{
+	int32_t i, k;
+	double d, tmp;
+	pc_node_t *p, *q, *r, *s, *new_root;
+
+	if (p0 == root || p0->parent == NULL) return root; // no need to root
+	if (dist > p0->d) return 0;
+	if (dist < 0.0) dist = p0->d * 0.5;
+
+	tmp = p0->d;  /* save original branch length of p0 */
+
+	/* Create the new root with two children: p0 and p0's former parent */
+	q = new_root = pc_node_new(2);
+	new_root->seq_id = -1;
+	new_root->d = -1.0;
+
+	q->child[0] = p0;
+	p0->d = dist;
+	p = p0->parent;
+	p0->parent = q;
+
+	/* Find p0's slot in its former parent's child array */
+	for (i = 0; i < p->n_child; ++i)
+		if (p->child[i] == p0) break;
+
+	q->child[1] = p;
+	d = p->d;           /* save p's branch length before overwriting */
+	p->d = tmp - dist;  /* remaining half of the split branch */
+	r = p->parent;
+	p->parent = q;
+
+	/* Walk up to the old root reversing each parent->child edge.
+	 * At each step: make r a child of p (reversing the edge),
+	 * rotate branch lengths upward, then advance p, q, r. */
+	while (r != NULL) {
+		s = r->parent;       /* save r's parent before modifying */
+		p->child[i] = r;     /* reverse edge: r becomes child of p */
+		for (i = 0; i < r->n_child; ++i)  /* find p's slot in r */
+			if (r->child[i] == p) break;
+		r->parent = p;
+		tmp = r->d; r->d = d; d = tmp;  /* rotate branch length upward */
+		q = p; p = r; r = s;
+	}
+
+	/* p is now the old root; i is the slot of q in p's child array.
+	 * Suppress the old root to maintain a proper rooted binary (or
+	 * reduce arity by one for multifurcating roots). */
+	if (p->n_child == 2) {
+		/* Binary old root: bypass it, absorbing its branch into the
+		 * remaining child so the total path length is preserved */
+		r = p->child[1 - i];
+		for (i = 0; i < q->n_child; ++i)  /* find p's slot in q */
+			if (q->child[i] == p) break;
+		r->d += p->d;
+		r->parent = q;
+		q->child[i] = r;
+		free(p->name); free(p);
+	} else {
+		/* Multifurcating old root: just remove the reversed child */
+		for (k = i; k < p->n_child - 1; ++k)
+			p->child[k] = p->child[k + 1];
+		--p->n_child;
+	}
+
+	return new_root;
+}
+
+void pc_tree_reroot(pc_tree_t *t, int32_t nid, double dist)
+{
+	pc_node_t *new_root;
+	new_root = pc_tree_reroot_core(t->root, t->node[nid], dist);
+	if (new_root == NULL) return;
+	t->root = new_root;
+	pc_tree_sync(t);
+}
+
 /**********
  * Format *
  **********/
