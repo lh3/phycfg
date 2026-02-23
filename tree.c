@@ -211,10 +211,11 @@ int32_t pc_tree_lca(const pc_tree_t *t, const uint8_t *mark)
 	return lca;
 }
 
-/* Find the node whose incoming branch contains the midpoint of the longest
- * leaf-to-leaf path (tree diameter). Returns that node's ftime, or -1 if
- * the tree has fewer than two leaves. Writes the diameter to *longest. */
-int32_t pc_tree_mid_longest(const pc_tree_t *t, double *longest)
+/* Find the node p whose incoming branch contains the midpoint of the longest
+ * leaf-to-leaf path (tree diameter). Returns p's ftime, or -1 if the tree
+ * has fewer than two leaves. Writes the distance from p to the midpoint
+ * (along p's incoming branch) to *dist_to_mid. */
+int32_t pc_tree_mid_longest(const pc_tree_t *t, double *dist_to_mid)
 {
 	int32_t i, k, lca_idx = -1, b1_idx = -1, b2_idx = -1;
 	double diam = -1.0;
@@ -245,10 +246,9 @@ int32_t pc_tree_mid_longest(const pc_tree_t *t, double *longest)
 
 	if (lca_idx < 0) {   /* fewer than two leaves */
 		free(max_down); free(best_child);
-		if (longest) *longest = 0.0;
+		if (dist_to_mid) *dist_to_mid = 0.0;
 		return -1;
 	}
-	if (longest) *longest = diam;
 
 	/* d1: distance from LCA to the leaf1 end of the diameter path */
 	double d1   = (t->node[b1_idx]->d > 0.0 ? t->node[b1_idx]->d : 0.0) + max_down[b1_idx];
@@ -256,14 +256,17 @@ int32_t pc_tree_mid_longest(const pc_tree_t *t, double *longest)
 	/* Descend from the LCA toward whichever leaf is farther from the midpoint. */
 	int32_t curr   = (half <= d1) ? b1_idx : b2_idx;
 	double  target = (half <= d1) ? (d1 - half) : (half - d1);
-	double  accum  = 0.0;
+	double  accum  = 0.0, edge = 0.0;
 	/* Walk down best_child[] until we reach the branch containing the midpoint. */
 	while (1) {
-		double edge = t->node[curr]->d > 0.0 ? t->node[curr]->d : 0.0;
+		edge = t->node[curr]->d > 0.0 ? t->node[curr]->d : 0.0;
 		if (accum + edge >= target) break;
 		accum += edge;
 		curr = best_child[curr];
 	}
+	/* The midpoint is (target - accum) from curr's parent; so it is
+	 * (accum + edge - target) from curr itself along the same branch. */
+	if (dist_to_mid) *dist_to_mid = accum + edge - target;
 	free(max_down); free(best_child);
 	return curr;
 }
