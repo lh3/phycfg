@@ -78,3 +78,14 @@ void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt, int32_t is_cds)
 	for (; i < msa->len; ++i) free(msa->msa[i]); /* trailing incomplete codon */
 	msa->len = w;
 }
+
+void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag) /* bit 0/1/2 = keep 1st/2nd/3rd codon position */
+{
+	int32_t i, k, w = 0;
+	for (i = 0; i + 3 <= msa->len; i += 3)
+		for (k = 0; k < 3; ++k)
+			if (codon_flag & (1 << k)) msa->msa[w++] = msa->msa[i + k];
+			else free(msa->msa[i + k]);
+	for (; i < msa->len; ++i) free(msa->msa[i]); /* trailing incomplete codon */
+	msa->len = w;
+}

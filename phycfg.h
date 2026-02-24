@@ -19,7 +19,7 @@ typedef struct {
 	pc_node_t *root, **node;
 } pc_tree_t;
 
-typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_AA } pc_restype_t;
+typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_CODON, PC_RT_AA } pc_restype_t;
 
 #define PC_GAP_NT 5
 #define PC_GAP_AA 23
@@ -61,6 +61,7 @@ void pc_msa_destroy(pc_msa_t *msa);
 pc_restype_t pc_msa_infer_rt(const pc_msa_t *msa);
 void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt);
 void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt, int32_t is_cds);
+void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag);
 
 char **pc_list_read(const char *o, int *n_);
 

@@ -105,18 +105,23 @@ int main_view(int argc, char *argv[])
 
 int main_msaflt(int argc, char *argv[])
 {
-	int32_t min_cnt = 1, is_cds = 0;
+	int32_t min_cnt = 1, is_cds = 0, codon_flag = 0;
 	ketopt_t o = KETOPT_INIT;
 	int c;
-	while ((c = ketopt(&o, argc, argv, 1, "m:c", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "m:c123", 0)) >= 0) {
 		if      (c == 'm') min_cnt = atoi(o.arg);
 		else if (c == 'c') is_cds = 1;
+		else if (c == '1') codon_flag |= 1;
+		else if (c == '2') codon_flag |= 2;
+		else if (c == '3') codon_flag |= 4;
 	}
+	if (codon_flag) is_cds = 1;
 	if (o.ind == argc) {
 		fprintf(stderr, "Usage: phycfg msaflt [options] <aln.mfa.gz>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -m INT   min non-gap/non-ambiguous residues per column [1]\n");
 		fprintf(stderr, "  -c       treat as CDS; filter whole codons\n");
+		fprintf(stderr, "  -1/-2/-3 select 1st/2nd/3rd codon position (implies -c; combinable)\n");
 		return 1;
 	}
 
@@ -126,6 +131,7 @@ int main_msaflt(int argc, char *argv[])
 	pc_restype_t rt = pc_msa_infer_rt(msa);
 	pc_msa_encode(msa, rt);
 	pc_msa_filter(msa, min_cnt, is_cds);
+	if (codon_flag) pc_msa_select_codon(msa, codon_flag);
 
 	int32_t i, j;
 	for (j = 0; j < msa->n_seq; ++j) {

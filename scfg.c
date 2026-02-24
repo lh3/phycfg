@@ -226,7 +226,7 @@ int main_scfg(int argc, char *argv[])
 	if (msa == NULL) { pc_tree_destroy(t); return 1; }
 
 	pc_msa_encode(msa, pc_msa_infer_rt(msa));
-	assert(msa->rt == PC_RT_NT); // only for nucleotide for now
+	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
 	pc_tree_match_msa(t, msa);
 	sd = pc_scfg_new(t->n_node, msa->m);
 	p = pc_mat2d_new(t->n_node, msa->m * msa->m);
