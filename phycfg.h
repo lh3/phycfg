@@ -60,7 +60,7 @@ pc_msa_t *pc_msa_read(const char *fn);
 void pc_msa_destroy(pc_msa_t *msa);
 pc_restype_t pc_msa_infer_rt(const pc_msa_t *msa);
 void pc_msa_encode(pc_msa_t *msa, pc_restype_t rt);
-void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt, int32_t is_cds);
+void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt);
 void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag);
 
 char **pc_list_read(const char *o, int *n_);
