@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "kommon.h"
 #include "ketopt.h"
 #include "phycfg.h"
@@ -123,15 +124,15 @@ void pc_scfg_outside(const pc_tree_t *t, const double *p, int32_t m, pc_scfg_t *
 	free(sib);
 }
 
-double pc_scfg_em_basic(const pc_tree_t *t, double *p, const pc_msa_t *msa, pc_scfg_t *sd)
+/* Compute posterior counts into cnt[n_node*m*m] (zeroed on entry) and return
+ * the total log likelihood summed over all alignment columns. */
+double pc_scfg_post_cnt(const pc_tree_t *t, const double *p, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt)
 {
 	int32_t i, j, k, a, b, m = msa->m;
 	double loglk = 0.0;
-	double *cnt = kom_calloc(double, (size_t)t->n_node * m * m);
-	double *tmp = kom_calloc(double, m * m);
+	double *tmp = kom_malloc(double, m * m);
 	double *sib = kom_malloc(double, m);
-
-	/* E step: accumulate sufficient statistics over all alignment columns */
+	memset(cnt, 0, (size_t)t->n_node * m * m * sizeof(double));
 	for (i = 0; i < msa->len; ++i) {
 		double sum, *cnt_j;
 		loglk += pc_scfg_inside(t, p, msa, i, sd);
@@ -140,7 +141,8 @@ double pc_scfg_em_basic(const pc_tree_t *t, double *p, const pc_msa_t *msa, pc_s
 		 * p(b|a) * alpha~(u,b) * beta~(par,a) * prod_k alpha'~(sib_k,a) */
 		for (j = 0; j < t->n_node - 1; ++j) {
 			const pc_node_t *u = t->node[j], *v = u->parent;
-			double *alpha_u = sd[j].alpha, *beta_v = sd[v->ftime].beta, *pj = p + (size_t)j * m * m;
+			double *alpha_u = sd[j].alpha, *beta_v = sd[v->ftime].beta;
+			const double *pj = p + (size_t)j * m * m;
 			cnt_j = cnt + (size_t)j * m * m;
 			for (a = 0; a < m; ++a) sib[a] = 1.0;
 			for (k = 0; k < v->n_child; ++k) { // prod_k alpha'~(sib_k,a)
@@ -169,6 +171,15 @@ double pc_scfg_em_basic(const pc_tree_t *t, double *p, const pc_msa_t *msa, pc_s
 			for (b = 0; b < m; ++b)
 				cnt_j[a*m + b] += sd[j].alpha[b] * sd[j].beta[b] * sum;
 	}
+	free(sib); free(tmp);
+	return loglk;
+}
+
+double pc_scfg_em_basic(const pc_tree_t *t, double *p, const pc_msa_t *msa, pc_scfg_t *sd)
+{
+	int32_t j, a, b, m = msa->m;
+	double *cnt = kom_malloc(double, (size_t)t->n_node * m * m);
+	double loglk = pc_scfg_post_cnt(t, p, msa, sd, cnt);
 
 	/* M step: renormalize each row of p from accumulated counts */
 	for (j = 0; j < t->n_node; ++j) {
@@ -181,7 +192,7 @@ double pc_scfg_em_basic(const pc_tree_t *t, double *p, const pc_msa_t *msa, pc_s
 		}
 	}
 
-	free(sib); free(tmp); free(cnt);
+	free(cnt);
 	return loglk;
 }
 
