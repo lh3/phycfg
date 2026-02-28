@@ -22,25 +22,14 @@ pc_scfg_t *pc_scfg_new(int32_t n_node, int32_t m)
 	return s;
 }
 
-double **pc_mat2d_new(int32_t n_row, int32_t n_col)
-{
-	double *x, **p;
-	int32_t i, n_dbl = (sizeof(double*) * n_row + sizeof(double) - 1) / sizeof(double);
-	x = kom_calloc(double, n_dbl + n_row * n_col);
-	p = (double**)x;
-	x += n_dbl;
-	for (i = 0; i < n_row; ++i)
-		p[i] = x, x += n_col;
-	return p;
-}
-
-void pc_transmat_init(double **p, int32_t m, const pc_tree_t *t)
+// shape of p: (n,m,m), where n is the number of nodes and m is the size of the alphabet
+void pc_transmat_init(double *p, int32_t m, const pc_tree_t *t)
 {
 	int32_t k;
 	assert(m > 1);
 	for (k = 0; k < t->n_node; ++k) {
 		int32_t i, j;
-		double diag, off, *pk = p[k];
+		double diag, off, *pk = p + (size_t)k * m * m;
 		if (k < t->n_node - 1) { // not root
 			double d = t->node[k]->d;
 			d = d > 0.0? d : 1e-3;
@@ -63,7 +52,7 @@ static inline void pc_scfg_emit(int32_t m, int32_t c, double *alpha)
 	}
 }
 
-double pc_scfg_inside(const pc_tree_t *t, double **p, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd)
+double pc_scfg_inside(const pc_tree_t *t, const double *p, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd)
 {
 	int32_t i, k, a, b, m = msa->m;
 	double logh = 0.0, sum;
@@ -86,7 +75,8 @@ double pc_scfg_inside(const pc_tree_t *t, double **p, const pc_msa_t *msa, int32
 		for (a = 0; a < m; ++a) alpha[a] /= h;
 		/* alpha'(v,a) = sum_b p(b|a) * alpha~(v,b); stored in alpha2 for parent */
 		for (a = 0; a < m; ++a) { // NB: alpha2[] is not defined at the root, though it is calculated anyway
-			double s = 0.0, *pi = p[i];
+			const double *pi = p + (size_t)i * m * m;
+			double s = 0.0;
 			for (b = 0; b < m; ++b) s += pi[a*m + b] * alpha[b];
 			alpha2[a] = s;
 		}
@@ -94,17 +84,17 @@ double pc_scfg_inside(const pc_tree_t *t, double **p, const pc_msa_t *msa, int32
 		logh += log(h);
 	}
 	for (a = 0, sum = 0.0; a < m; ++a)
-		sum += sd[t->n_node - 1].alpha[a] * p[t->n_node - 1][a];
+		sum += sd[t->n_node - 1].alpha[a] * p[(size_t)(t->n_node - 1) * m * m + a];
 	return logh + log(sum); // this is equal to logh + log(h(root) * \sum_a alpha~(root,a) * beta~(root,a))
 }
 
-void pc_scfg_outside(const pc_tree_t *t, double **p, int32_t m, pc_scfg_t *sd)
+void pc_scfg_outside(const pc_tree_t *t, const double *p, int32_t m, pc_scfg_t *sd)
 {
 	int32_t i, a, b, root_idx = t->n_node - 1;
 	double *sib = kom_malloc(double, m);
 
 	/* beta~(root,a) = q(a)/h_root; q(a)=p[root_idx][a] */
-	for (a = 0; a < m; ++a) sd[root_idx].beta[a] = p[root_idx][a] / sd[root_idx].h;
+	for (a = 0; a < m; ++a) sd[root_idx].beta[a] = p[(size_t)root_idx * m * m + a] / sd[root_idx].h;
 
 	/* Pre-order: root (highest index) down to leaves; parent always visited first */
 	for (i = root_idx - 1; i >= 0; --i) {
@@ -112,6 +102,7 @@ void pc_scfg_outside(const pc_tree_t *t, double **p, int32_t m, pc_scfg_t *sd)
 		pc_node_t *v = u->parent;
 		int32_t k;
 		double *beta_u = sd[i].beta, *beta_v = sd[v->ftime].beta;
+		const double *pi = p + (size_t)i * m * m;
 
 		/* sib[a] = prod_k alpha'~(sibling_k, a) for all siblings of u */
 		for (a = 0; a < m; ++a) sib[a] = 1.0;
@@ -125,14 +116,14 @@ void pc_scfg_outside(const pc_tree_t *t, double **p, int32_t m, pc_scfg_t *sd)
 		for (b = 0; b < m; ++b) {
 			double s = 0.0;
 			for (a = 0; a < m; ++a)
-				s += p[i][a*m + b] * beta_v[a] * sib[a];
+				s += pi[a*m + b] * beta_v[a] * sib[a];
 			beta_u[b] = s / sd[i].h;
 		}
 	}
 	free(sib);
 }
 
-double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_scfg_t *sd)
+double pc_scfg_em_basic(const pc_tree_t *t, double *p, const pc_msa_t *msa, pc_scfg_t *sd)
 {
 	int32_t i, j, k, a, b, m = msa->m;
 	double loglk = 0.0;
@@ -149,7 +140,7 @@ double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_
 		 * p(b|a) * alpha~(u,b) * beta~(par,a) * prod_k alpha'~(sib_k,a) */
 		for (j = 0; j < t->n_node - 1; ++j) {
 			const pc_node_t *u = t->node[j], *v = u->parent;
-			double *alpha_u = sd[j].alpha, *beta_v = sd[v->ftime].beta;
+			double *alpha_u = sd[j].alpha, *beta_v = sd[v->ftime].beta, *pj = p + (size_t)j * m * m;
 			cnt_j = cnt + (size_t)j * m * m;
 			for (a = 0; a < m; ++a) sib[a] = 1.0;
 			for (k = 0; k < v->n_child; ++k) { // prod_k alpha'~(sib_k,a)
@@ -161,7 +152,7 @@ double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_
 			for (a = 0, sum = 0.0; a < m; ++a) {
 				double x = beta_v[a] * sib[a];
 				for (b = 0; b < m; ++b)
-					sum += (tmp[a*m + b] = p[j][a*m + b] * alpha_u[b] * x);
+					sum += (tmp[a*m + b] = pj[a*m + b] * alpha_u[b] * x);
 			}
 			sum = 1.0 / sum;
 			for (a = 0; a < m; ++a)
@@ -181,7 +172,7 @@ double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_
 
 	/* M step: renormalize each row of p from accumulated counts */
 	for (j = 0; j < t->n_node; ++j) {
-		double *cnt_j = cnt + (size_t)j * m * m, *p_j = p[j];
+		double *cnt_j = cnt + (size_t)j * m * m, *p_j = p + (size_t)j * m * m;
 		for (a = 0; a < m; ++a) {
 			double s = 0.0;
 			for (b = 0; b < m; ++b) s += cnt_j[a*m + b];
@@ -194,7 +185,7 @@ double pc_scfg_em_basic(const pc_tree_t *t, double **p, const pc_msa_t *msa, pc_
 	return loglk;
 }
 
-double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter, double **p, pc_scfg_t *sd)
+double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter, double *p, pc_scfg_t *sd)
 {
 	int32_t k;
 	double loglk;
@@ -209,7 +200,7 @@ int main_scfg(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	int32_t i, reroot = 0, max_iter = 20;
 	pc_scfg_t *sd;
-	double **p;
+	double *p;
 
 	while (ketopt(&o, argc, argv, 1, "rm:", 0) >= 0) {
 		if (o.opt == 'r') reroot = 1;
@@ -229,7 +220,7 @@ int main_scfg(int argc, char *argv[])
 	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
 	pc_tree_match_msa(t, msa);
 	sd = pc_scfg_new(t->n_node, msa->m);
-	p = pc_mat2d_new(t->n_node, msa->m * msa->m);
+	p = kom_calloc(double, (size_t)t->n_node * msa->m * msa->m);
 
 	if (reroot) { // try all the other roots, perform EM and calculate loglk
 		int32_t max_i = -1;
@@ -260,7 +251,7 @@ int main_scfg(int argc, char *argv[])
 			printf("LK\t%.6f\n", loglk);
 		}
 		printf("BF");
-		for (i = 0; i < msa->m; ++i) printf("\t%.4f", p[t->n_node-1][i]);
+		for (i = 0; i < msa->m; ++i) printf("\t%.4f", p[(size_t)(t->n_node-1) * msa->m * msa->m + i]);
 		printf("\n");
 	}
 

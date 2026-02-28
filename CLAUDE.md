@@ -83,8 +83,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o scfg.o`. Linked with `
 - **`scfg.c`** — SCFG algorithms and the `scfg` subcommand (functions declared in `phycfg.h` where externally visible):
   - `pc_scfg_t` fields: `h` (per-node scaling factor), `*alpha` (α̃), `*alpha2` (α̃'), `*beta` (β̃) — all pointers into a single flat allocation; NOT a flexible-array struct
   - `pc_scfg_new(n_node, m)` — allocates one contiguous block for an array of `n_node` `pc_scfg_t` headers followed by `3*n_node*m` doubles; sets each node's three pointers into the data region
-  - `pc_mat2d_new(n_row, n_col)` — allocates a 2D `double**` with row pointers and data in one flat block; used for transition matrices
-  - `pc_transmat_init(p, m, t)` — fills `p[k]` (m×m, row-major, `p[k][a*m+b] = P(b|a)`) for each node k; non-root nodes get JC model from `t->node[k]->d` (clamped to ≥1e-3); root node gets flat `1/m` for all entries (encodes q(a))
+  - `pc_transmat_init(p, m, t)` — fills `p + k*m*m` (m×m, row-major, `p[k*m*m + a*m+b] = P(b|a)`) for each node k; non-root nodes get JC model from `t->node[k]->d` (clamped to ≥1e-3); root node gets flat `1/m` for all entries (encodes q(a)); `p` is a 1D `double[n_node*m*m]` array
   - `pc_scfg_inside(t, p, msa, pos, sd)` — inside (Felsenstein) pass for column `pos`; requires binary tree (`assert n_child∈{0,2}`); requires `seq_id≥0` on all leaves; returns `Σ_v log h(v) + log(Σ_a α̃(root,a)·q(a))` = log P(column)
   - `pc_scfg_outside(t, p, m, sd)` — outside pass (must follow inside); initializes β̃(root,a) = p[root][a]/h_root = q(a)/h_root; propagates β̃ downward using α̃' from inside; returns void
   - `pc_scfg_em_basic(t, p, msa, sd)` — one EM round over the full MSA: E-step accumulates per-branch normalized sufficient statistics (including root/prior row); M-step renormalizes each transition row in-place; returns total log likelihood `Σ_pos log P(pos)`
