@@ -307,8 +307,9 @@ double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter
 
 void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 {
+	const int32_t max_iter_br = 10;
 	int32_t m = msa->m, k, l, u;
-	double loglk, *p, **eta;
+	double logh, loglk, *p, **eta;
 	pc_scfg_t *sd;
 	pc_nni_t **nni;
 
@@ -325,19 +326,21 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 	eta[0] = kom_calloc(double, (size_t)t->n_node * 3 * m * m * msa->len);
 	for (l = 1; l < msa->len; ++l)
 		eta[l] = eta[l - 1] + t->n_node * 3 * m * m;
-	for (l = 0, loglk = 0.0; l < msa->len; ++l) {
+	for (l = 0, loglk = 0.0, logh = 0.0; l < msa->len; ++l) {
 		loglk += pc_scfg_inside(t, p, msa, l, sd);
 		pc_scfg_outside(t, p, msa->m, sd);
 		pc_scfg_eta_nni(t, m, sd, eta[l]);
+		for (u = 0; u < t->n_node; ++u)
+			logh += log(sd[u].h);
 	}
-	printf("LK\t*\t%.6f\n", loglk);
+	printf("LH\t%.6f\t%.6f\n", loglk, logh);
 
 	nni = kom_calloc(pc_nni_t*, 3 * t->n_node);
 	for (u = 0; u < t->n_node; ++u) {
 		const double *pu = p + (size_t)u * m * m;
-		nni[u * 3 + 0] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 0, 10);
-		nni[u * 3 + 1] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 1, 10);
-		nni[u * 3 + 2] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 2, 10);
+		nni[u * 3 + 0] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 0, max_iter_br);
+		nni[u * 3 + 1] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 1, max_iter_br);
+		nni[u * 3 + 2] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 2, max_iter_br);
 		if (nni[u * 3 + 0] == 0) continue;
 		printf("NNI\t%d\t%.6f\t%.6f\t%.6f\n", u, nni[u * 3 + 0]->loglk, nni[u * 3 + 1]->loglk, nni[u * 3 + 2]->loglk);
 	}
@@ -351,7 +354,7 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, reroot = 0, test_nni = 0, max_iter = 20;
+	int32_t i, reroot = 0, test_nni = 0, max_iter = 50;
 	pc_scfg_t *sd;
 	double *p;
 
