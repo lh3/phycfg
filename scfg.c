@@ -467,11 +467,10 @@ int main_scfg(int argc, char *argv[])
 		}
 		for (k = 0; k < nni; ++k) {
 			double diff = pc_scfg_nni(t, msa, max_iter_br);
-			fprintf(stderr, "NI\t%d\t%.6f\n", k + 1, diff);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i)
 				loglk = pc_scfg_em_basic(t, msa, sd);
-			fprintf(stderr, "NL\t%d\t%.6f\n", k + 1, loglk);
+			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 		}
 		pc_tree_format(t, &str, &max);
 		puts(str);
