@@ -7,7 +7,7 @@
 
 typedef struct pc_node_s {
 	int32_t n_child, ftime;
-	int32_t seq_id;
+	int32_t seq_id, tmp;
 	double d;
 	char *name;
 	struct pc_node_s *parent;

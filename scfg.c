@@ -370,26 +370,26 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter, 
 	free(sd);
 }
 
-/* Apply the best single NNI move. Initializes p from branch lengths, computes
- * eta~ for all three rotations at each MSA column, then runs pc_scfg_em_branch
- * for every eligible node. The best (u, rotation) pair is the one that
- * maximizes loglk(rotation) - loglk(rotation 0). If any improvement is found,
- * applies pc_tree_rotate. Returns the improvement (>=0); 0 means no move. */
-double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter_br)
+/* Apply the best single NNI move. Uses caller-supplied p (already initialized).
+ * Computes eta~ for all three rotations at each MSA column, then runs
+ * pc_scfg_em_branch for every eligible node. The best (u, rotation) pair is
+ * the one that maximizes loglk(rotation) - loglk(rotation 0). If any
+ * improvement is found, applies pc_tree_rotate and rearranges p[] to match the
+ * new post-order, replacing p[u] with the optimized branch matrix.
+ * Returns the improvement (>=0); 0 means no move. */
+double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, double *p, int32_t max_iter_br)
 {
-	int32_t l, u, r, m = msa->m, best_u = -1, best_r = 0;
-	double **eta, *p, best_delta = 0.0;
+	int32_t l, u, r, m = msa->m, m2 = m * m, best_u = -1, best_r = 0;
+	double **eta, best_delta = 0.0;
 	pc_scfg_t *sd;
 	pc_nni_t **nni;
 
 	sd = pc_scfg_new(t->n_node, m);
-	p = kom_malloc(double, (size_t)t->n_node * m * m);
-	pc_transmat_init(p, m, t);
 
 	eta = kom_malloc(double*, msa->len);
-	eta[0] = kom_malloc(double, (size_t)t->n_node * 3 * m * m * msa->len);
+	eta[0] = kom_malloc(double, (size_t)msa->len * t->n_node * 3 * m2);
 	for (l = 1; l < msa->len; ++l)
-		eta[l] = eta[l-1] + t->n_node * 3 * m * m;
+		eta[l] = eta[l-1] + t->n_node * 3 * m2;
 	for (l = 0; l < msa->len; ++l) {
 		pc_scfg_inside(t, p, msa, l, sd);
 		pc_scfg_outside(t, p, m, sd);
@@ -413,14 +413,23 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter_br)
 		}
 	}
 
-	if (best_u >= 0) { // rotation 1: rotate child[0]; rotation 2: rotate child[1]
+	if (best_u >= 0) {
+		/* Stamp tmp = old ftime on every node; after pc_tree_sync, tmp still
+		 * holds the old ftime while ftime has the new value. */
 		pc_node_t *up = t->node[best_u];
-		pc_tree_rotate(t, up->child[best_r - 1]->ftime);
+		int32_t xi = up->child[best_r - 1]->ftime; // child[0] for r=1, child[1] for r=2
+		double *p_tmp = kom_malloc(double, (size_t)t->n_node * m * m);
+		for (u = 0; u < t->n_node; ++u) t->node[u]->tmp = u;
+		memcpy(p_tmp, p, sizeof(double) * (size_t)t->n_node * m * m);
+		pc_tree_rotate(t, xi);
+		for (u = 0; u < t->n_node; ++u) // u is new ftime; tmp is old ftime
+			memcpy(p + (size_t)u * m2, p_tmp + (size_t)t->node[u]->tmp * m2, sizeof(double) * m2);
+		memcpy(p + (size_t)up->ftime * m2, nni[best_u*3+best_r]->p, sizeof(double) * m2);
+		free(p_tmp);
 	}
 
 	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
-	free(nni); free(eta[0]); free(eta);
-	free(p); free(sd);
+	free(nni); free(eta[0]); free(eta); free(sd);
 	return best_delta;
 }
 
@@ -463,7 +472,7 @@ int main_scfg(int argc, char *argv[])
 			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
 		}
 		for (k = 0; k < nni; ++k) {
-			double diff = pc_scfg_nni(t, msa, max_iter_br);
+			double diff = pc_scfg_nni(t, msa, p, max_iter_br);
 			fprintf(stderr, "NI\t%d\t%.6f\n", k + 1, diff);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i)
