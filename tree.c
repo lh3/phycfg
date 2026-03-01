@@ -244,6 +244,36 @@ int32_t pc_tree_lca(const pc_tree_t *t, const uint8_t *mark)
 	return lca;
 }
 
+/* Rotate: given x, change ((x,y)u, w)v to ((w,y)u, x)v.
+ * x's parent u must exist, u's parent v must exist, and v must have exactly 2
+ * children. Returns 0 on success, -1 if not possible. Calls pc_tree_sync on
+ * success to restore post-order. */
+int32_t pc_tree_rotate(pc_tree_t *t, int32_t xi)
+{
+	pc_node_t *x, *u, *v, *w;
+	int32_t k;
+	if (xi < 0 || xi >= t->n_node) return -1;
+	x = t->node[xi];
+	u = x->parent;
+	if (u == NULL) return -1; // x is root
+	v = u->parent;
+	if (v == NULL) return -1; // u is root
+	if (v->n_child != 2) return -1;
+	w = v->child[v->child[0] == u ? 1 : 0]; // sibling of u under v
+	for (k = 0; k < u->n_child; ++k) // replace x with w in u->child[]
+		if (u->child[k] == x) { u->child[k] = w; break; }
+	for (k = 0; k < v->n_child; ++k) // replace w with x in v->child[]
+		if (v->child[k] == w) { v->child[k] = x; break; }
+	w->parent = u;
+	x->parent = v;
+	pc_tree_sync(t);
+	return 0;
+}
+
+/**********
+ * Reroot *
+ **********/
+
 /* Find the node p whose incoming branch contains the midpoint of the longest
  * leaf-to-leaf path (tree diameter). Returns p's ftime, or -1 if the tree
  * has fewer than two leaves. Writes the distance from p to the midpoint
