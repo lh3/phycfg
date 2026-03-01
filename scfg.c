@@ -433,12 +433,11 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter_br)
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, reroot = 0, max_iter = 100, max_iter_br = 50, nni = 0;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0;
 	pc_scfg_t *sd;
 
-	while (ketopt(&o, argc, argv, 1, "rm:b:n:", 0) >= 0) {
-		if (o.opt == 'r') reroot = 1;
-		else if (o.opt == 'n') nni = atoi(o.arg);
+	while (ketopt(&o, argc, argv, 1, "m:b:n:", 0) >= 0) {
+		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'm') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 	}
@@ -477,30 +476,8 @@ int main_scfg(int argc, char *argv[])
 		pc_tree_format(t, &str, &max);
 		puts(str);
 		free(str);
-	} else if (!reroot) {
-		pc_scfg_nni_dbg(t, msa, max_iter, max_iter_br);
 	} else {
-		int32_t max_i = -1;
-		double max_lk = -1e300;
-		for (i = 0; i < t->n_node; ++i) {
-			double loglk;
-			pc_tree_t *s = pc_tree_clone(t); // don't touch t
-			pc_tree_reroot(s, i, -1.0);
-			loglk = pc_scfg_em_iter(s, msa, max_iter, sd);
-			if (max_lk < loglk) max_lk = loglk, max_i = i;
-			fprintf(stderr, "RT\t%d\t%.6f\n", i, loglk);
-			pc_tree_destroy(s);
-		}
-		if (max_i >= 0) {
-			char *str = NULL;
-			int32_t max = 0;
-			pc_tree_t *s = pc_tree_clone(t);
-			pc_tree_reroot(s, max_i, -1.0);
-			pc_tree_format(s, &str, &max);
-			puts(str);
-			free(str);
-			pc_tree_destroy(s);
-		}
+		pc_scfg_nni_dbg(t, msa, max_iter, max_iter_br);
 	}
 
 	free(sd);
