@@ -186,7 +186,7 @@ void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double 
 
 pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, int32_t m, const double *p, int32_t len, double **eta, int32_t u, int32_t rotation, int32_t max_itr)
 {
-	int32_t i, l, a, b;
+	int32_t i, l, a, b, off;
 	pc_nni_t *q;
 	const pc_node_t *up = t->node[u], *vp = up->parent;
 	double *cnt, *tmp;
@@ -197,13 +197,14 @@ pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, int32_t m, const double *p, int3
 	memcpy(q->p, p, sizeof(double) * m * m);
 	cnt = kom_calloc(double, 2 * m * m);
 	tmp = cnt + m * m;
+	off = (u * 3 + rotation) * m * m;
 	for (i = 0; i < max_itr; ++i) {
 		double loglk = 0.0;
 		for (l = 0; l < len; ++l) {
 			double s = 0.0;
 			for (a = 0; a < m; ++a)
 				for (b = 0; b < m; ++b)
-					s += (tmp[a * m + b] = q->p[a * m + b] * eta[l][a * m + b]);
+					s += (tmp[a * m + b] = q->p[a * m + b] * eta[l][off + a * m + b]);
 			loglk += log(s);
 			for (a = 0, s = 1.0 / s; a < m; ++a)
 				for (b = 0; b < m; ++b)
@@ -303,16 +304,55 @@ double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter
 	return loglk;
 }
 
+void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
+{
+	int32_t m = msa->m, k, l, u;
+	double loglk, *p, **eta;
+	pc_scfg_t *sd;
+	pc_nni_t **nni;
+
+	sd = pc_scfg_new(t->n_node, msa->m);
+	p = kom_calloc(double, msa->m * msa->m);
+
+	pc_transmat_init(p, msa->m, t);
+	for (k = 0; k < max_iter; ++k) {
+		loglk = pc_scfg_em_basic(t, p, msa, sd);
+		printf("LK\t%d\t%.6f\n", k, loglk);
+	}
+
+	eta = kom_malloc(double*, msa->len);
+	eta[0] = kom_calloc(double, t->n_node * 3 * m * m);
+	for (l = 1; l < msa->len; ++l)
+		eta[l] = eta[l - 1] + t->n_node * 3 * m * m;
+	for (l = 0, loglk = 0.0; l < msa->len; ++l) {
+		loglk += pc_scfg_inside(t, p, msa, l, sd);
+		pc_scfg_outside(t, p, msa->m, sd);
+		pc_scfg_eta_nni(t, m, sd, eta[l]);
+	}
+	printf("LK\t%d\t%.6f\n", k, loglk);
+	nni = kom_calloc(pc_nni_t*, 3 * t->n_node);
+	for (u = 0; u < t->n_node; ++u) {
+		nni[u * 3 + 0] = pc_scfg_em_branch(t, m, p, msa->len, eta, u, 0, 10);
+		nni[u * 3 + 1] = pc_scfg_em_branch(t, m, p, msa->len, eta, u, 1, 10);
+		nni[u * 3 + 2] = pc_scfg_em_branch(t, m, p, msa->len, eta, u, 2, 10);
+		if (nni[u * 3 + 1] == 0) continue;
+	}
+	free(eta[0]); free(eta);
+	free(p);
+	free(sd);
+}
+
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, reroot = 0, max_iter = 20;
+	int32_t i, reroot = 0, test_nni = 0, max_iter = 20;
 	pc_scfg_t *sd;
 	double *p;
 
-	while (ketopt(&o, argc, argv, 1, "rm:", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "rm:n", 0) >= 0) {
 		if (o.opt == 'r') reroot = 1;
 		else if (o.opt == 'm') max_iter = atoi(o.arg);
+		else if (o.opt == 'n') test_nni = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -330,7 +370,9 @@ int main_scfg(int argc, char *argv[])
 	sd = pc_scfg_new(t->n_node, msa->m);
 	p = kom_calloc(double, (size_t)t->n_node * msa->m * msa->m);
 
-	if (reroot) { // try all the other roots, perform EM and calculate loglk
+	if (test_nni) {
+		pc_scfg_nni_dbg(t, msa, max_iter);
+	} else if (reroot) { // try all the other roots, perform EM and calculate loglk
 		int32_t max_i = -1;
 		double max_lk = -1e300;
 		for (i = 0; i < t->n_node; ++i) {
