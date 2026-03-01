@@ -325,9 +325,8 @@ double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter
  * rotations at each MSA column via inside-outside + pc_scfg_eta_nni. Finally
  * calls pc_scfg_em_branch for all eligible nodes and all three rotations,
  * printing per-node NNI log-likelihoods ("NNI\tu\tlk0\tlk1\tlk2"). */
-void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
+void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter, int32_t max_iter_br)
 {
-	const int32_t max_iter_br = 10;
 	int32_t m = msa->m, k, l, u;
 	double logh, loglk, *p, **eta;
 	pc_scfg_t *sd;
@@ -374,14 +373,14 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, reroot = 0, test_nni = 0, max_iter = 50;
+	int32_t i, reroot = 0, max_iter = 50, max_iter_br = 20;
 	pc_scfg_t *sd;
 	double *p;
 
-	while (ketopt(&o, argc, argv, 1, "rm:n", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "rm:b:", 0) >= 0) {
 		if (o.opt == 'r') reroot = 1;
 		else if (o.opt == 'm') max_iter = atoi(o.arg);
-		else if (o.opt == 'n') test_nni = 1;
+		else if (o.opt == 'r') max_iter_br = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -399,9 +398,9 @@ int main_scfg(int argc, char *argv[])
 	sd = pc_scfg_new(t->n_node, msa->m);
 	p = kom_calloc(double, (size_t)t->n_node * msa->m * msa->m);
 
-	if (test_nni) {
+	if (!reroot) {
 		pc_scfg_nni_dbg(t, msa, max_iter);
-	} else if (reroot) { // try all the other roots, perform EM and calculate loglk
+	} else {
 		int32_t max_i = -1;
 		double max_lk = -1e300;
 		for (i = 0; i < t->n_node; ++i) {
@@ -423,15 +422,6 @@ int main_scfg(int argc, char *argv[])
 			free(str);
 			pc_tree_destroy(s);
 		}
-	} else {
-		pc_transmat_init(p, msa->m, t);
-		for (i = 0; i < max_iter; ++i) {
-			double loglk = pc_scfg_em_basic(t, p, msa, sd);
-			printf("LK\t%.6f\n", loglk);
-		}
-		printf("BF");
-		for (i = 0; i < msa->m; ++i) printf("\t%.4f", p[(size_t)(t->n_node-1) * msa->m * msa->m + i]);
-		printf("\n");
 	}
 
 	free(p); free(sd);
