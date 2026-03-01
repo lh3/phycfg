@@ -149,6 +149,31 @@ void pc_scfg_eta(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta
 	free(sib);
 }
 
+void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta[3])
+{
+	int32_t u;
+	for (u = 0; u < t->n_node - 1; ++u) {
+		const pc_node_t *up = t->node[u], *vp = up->parent;
+		int32_t v, x, y, w, a, b; // original topology: ((x,y)u,w)v
+		double *eta0_u, *eta1_u;
+		if (vp == 0 || up->n_child == 0) return;
+		assert(up->n_child == 2);
+		v = vp->ftime;
+		w = vp->child[(vp->child[0] == up)]->ftime;
+		x = up->child[0]->ftime;
+		y = up->child[1]->ftime;
+		eta0_u = &eta[1][u * m * m];
+		eta1_u = &eta[2][u * m * m];
+		for (a = 0; a < m; ++a) {
+			double s, q = sd[v].beta[a] / sd[u].h;
+			for (b = 0, s = q * sd[x].alpha2[a]; b < m; ++b) // alt topology1: ((w,y)u,x)v
+				eta0_u[a * m + b] = s * sd[w].alpha2[b] * sd[y].alpha2[b];
+			for (b = 0, s = q * sd[y].alpha2[a]; b < m; ++b) // alt topology2: ((x,w)u,y)v
+				eta1_u[a * m + b] = s * sd[w].alpha2[b] * sd[x].alpha2[b];
+		}
+	}
+}
+
 /* Compute posterior counts into cnt[n_node*m*m] (zeroed on entry) and return
  * the total log likelihood summed over all alignment columns. */
 double pc_scfg_post_cnt(const pc_tree_t *t, const double *p, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt)
