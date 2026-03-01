@@ -220,6 +220,7 @@ int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa)
 		}
 	}
 	strmap_destroy(h);
+	t->m = msa->m;
 	return n_unmatch;
 }
 

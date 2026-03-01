@@ -15,7 +15,7 @@ typedef struct pc_node_s {
 } pc_node_t, *pc_node_p;
 
 typedef struct {
-	int32_t n_node;
+	int32_t n_node, m; // m: size of the alphabet
 	pc_node_t *root, **node;
 } pc_tree_t;
 
@@ -67,8 +67,8 @@ void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag);
 char **pc_list_read(const char *o, int *n_);
 
 double pc_scfg_inside(const pc_tree_t *t, const double *p, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd);
-void pc_scfg_outside(const pc_tree_t *t, const double *p, int32_t m, pc_scfg_t *sd);
-void pc_scfg_eta(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta);
+void pc_scfg_outside(const pc_tree_t *t, const double *p, pc_scfg_t *sd);
+void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_t *sd, double *eta);
 double pc_scfg_post_cnt(const pc_tree_t *t, const double *p, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt);
 
 #ifdef __cplusplus
