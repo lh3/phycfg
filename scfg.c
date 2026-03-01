@@ -163,7 +163,7 @@ void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double 
 		const pc_node_t *up = t->node[u], *vp = up->parent;
 		int32_t v, x, y, w, a, b; // original topology: ((x,y)u,w)v
 		double *eta0_u, *eta1_u, *eta2_u;
-		if (vp == 0 || up->n_child == 0) return;
+		if (vp == 0 || up->n_child == 0) continue;
 		assert(up->n_child == 2);
 		v = vp->ftime;
 		w = vp->child[(vp->child[0] == up)]->ftime;
@@ -200,6 +200,7 @@ pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, int32_t m, const double *p, int3
 	off = (u * 3 + rotation) * m * m;
 	for (i = 0; i < max_itr; ++i) {
 		double loglk = 0.0;
+		memset(cnt, 0, sizeof(double) * m * m);
 		for (l = 0; l < len; ++l) {
 			double s = 0.0;
 			for (a = 0; a < m; ++a)
@@ -312,7 +313,7 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 	pc_nni_t **nni;
 
 	sd = pc_scfg_new(t->n_node, msa->m);
-	p = kom_calloc(double, msa->m * msa->m);
+	p = kom_calloc(double, (size_t)t->n_node * msa->m * msa->m);
 
 	pc_transmat_init(p, msa->m, t);
 	for (k = 0; k < max_iter; ++k) {
@@ -321,7 +322,7 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 	}
 
 	eta = kom_malloc(double*, msa->len);
-	eta[0] = kom_calloc(double, t->n_node * 3 * m * m);
+	eta[0] = kom_calloc(double, (size_t)t->n_node * 3 * m * m * msa->len);
 	for (l = 1; l < msa->len; ++l)
 		eta[l] = eta[l - 1] + t->n_node * 3 * m * m;
 	for (l = 0, loglk = 0.0; l < msa->len; ++l) {
@@ -329,14 +330,19 @@ void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 		pc_scfg_outside(t, p, msa->m, sd);
 		pc_scfg_eta_nni(t, m, sd, eta[l]);
 	}
-	printf("LK\t%d\t%.6f\n", k, loglk);
+	printf("LK\t*\t%.6f\n", loglk);
+
 	nni = kom_calloc(pc_nni_t*, 3 * t->n_node);
 	for (u = 0; u < t->n_node; ++u) {
-		nni[u * 3 + 0] = pc_scfg_em_branch(t, m, p, msa->len, eta, u, 0, 10);
-		nni[u * 3 + 1] = pc_scfg_em_branch(t, m, p, msa->len, eta, u, 1, 10);
-		nni[u * 3 + 2] = pc_scfg_em_branch(t, m, p, msa->len, eta, u, 2, 10);
-		if (nni[u * 3 + 1] == 0) continue;
+		const double *pu = p + (size_t)u * m * m;
+		nni[u * 3 + 0] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 0, 10);
+		nni[u * 3 + 1] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 1, 10);
+		nni[u * 3 + 2] = pc_scfg_em_branch(t, m, pu, msa->len, eta, u, 2, 10);
+		if (nni[u * 3 + 0] == 0) continue;
+		printf("NNI\t%d\t%.6f\t%.6f\t%.6f\n", u, nni[u * 3 + 0]->loglk, nni[u * 3 + 1]->loglk, nni[u * 3 + 2]->loglk);
 	}
+	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
+	free(nni);
 	free(eta[0]); free(eta);
 	free(p);
 	free(sd);
