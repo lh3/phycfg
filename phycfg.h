@@ -67,6 +67,7 @@ char **pc_list_read(const char *o, int *n_);
 
 double pc_scfg_inside(const pc_tree_t *t, const double *p, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd);
 void pc_scfg_outside(const pc_tree_t *t, const double *p, int32_t m, pc_scfg_t *sd);
+void pc_scfg_eta(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta);
 double pc_scfg_post_cnt(const pc_tree_t *t, const double *p, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt);
 
 #ifdef __cplusplus

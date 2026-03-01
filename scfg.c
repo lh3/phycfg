@@ -124,6 +124,31 @@ void pc_scfg_outside(const pc_tree_t *t, const double *p, int32_t m, pc_scfg_t *
 	free(sib);
 }
 
+/* Compute eta~[n_node*m*m] from inside/outside values already stored in sd.
+ * For non-root u with parent v and sibling(s) w (except the root):
+ *   eta~(u,b|a) = beta~(v,a) * alpha~(u,b) * prod_k alpha'~(sib_k,a) */
+void pc_scfg_eta(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta)
+{
+	int32_t i, k, a, b, root_idx = t->n_node - 1;
+	double *sib = kom_malloc(double, m);
+
+	for (i = 0; i < root_idx; ++i) { // eta~ is not defined at the root
+		const pc_node_t *u = t->node[i], *v = u->parent;
+		double *eta_i = eta + (size_t)i * m * m;
+		const double *alpha_u = sd[i].alpha, *beta_v = sd[v->ftime].beta;
+		for (a = 0; a < m; ++a) sib[a] = 1.0;
+		for (k = 0; k < v->n_child; ++k)
+			if (v->child[k] != u) {
+				const double *a2k = sd[v->child[k]->ftime].alpha2;
+				for (a = 0; a < m; ++a) sib[a] *= a2k[a];
+			}
+		for (a = 0; a < m; ++a)
+			for (b = 0; b < m; ++b)
+				eta_i[a*m + b] = beta_v[a] * alpha_u[b] * sib[a];
+	}
+	free(sib);
+}
+
 /* Compute posterior counts into cnt[n_node*m*m] (zeroed on entry) and return
  * the total log likelihood summed over all alignment columns. */
 double pc_scfg_post_cnt(const pc_tree_t *t, const double *p, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt)
