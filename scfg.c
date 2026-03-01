@@ -149,29 +149,76 @@ void pc_scfg_eta(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta
 	free(sib);
 }
 
-void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta[3])
-{
+typedef struct {
+	int32_t rotation; // 0: ((x,y)u,w)v; 1: ((w,y)u,x)v; 2: ((x,w)u,y)v
+	int32_t u;
+	double loglk;
+	double p[];
+} pc_nni_t;
+
+void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta)
+{ // eta shape: (n,3,m,m)
 	int32_t u;
 	for (u = 0; u < t->n_node - 1; ++u) {
 		const pc_node_t *up = t->node[u], *vp = up->parent;
 		int32_t v, x, y, w, a, b; // original topology: ((x,y)u,w)v
-		double *eta0_u, *eta1_u;
+		double *eta0_u, *eta1_u, *eta2_u;
 		if (vp == 0 || up->n_child == 0) return;
 		assert(up->n_child == 2);
 		v = vp->ftime;
 		w = vp->child[(vp->child[0] == up)]->ftime;
 		x = up->child[0]->ftime;
 		y = up->child[1]->ftime;
-		eta0_u = &eta[1][u * m * m];
-		eta1_u = &eta[2][u * m * m];
+		eta0_u = &eta[(u * 3 + 0) * m * m];
+		eta1_u = &eta[(u * 3 + 1) * m * m];
+		eta2_u = &eta[(u * 3 + 2) * m * m];
 		for (a = 0; a < m; ++a) {
 			double s, q = sd[v].beta[a] / sd[u].h;
-			for (b = 0, s = q * sd[x].alpha2[a]; b < m; ++b) // alt topology1: ((w,y)u,x)v
-				eta0_u[a * m + b] = s * sd[w].alpha2[b] * sd[y].alpha2[b];
-			for (b = 0, s = q * sd[y].alpha2[a]; b < m; ++b) // alt topology2: ((x,w)u,y)v
-				eta1_u[a * m + b] = s * sd[w].alpha2[b] * sd[x].alpha2[b];
+			for (b = 0, s = q * sd[w].alpha2[a]; b < m; ++b) // rotation 0
+				eta0_u[a * m + b] = s * sd[x].alpha2[b] * sd[y].alpha2[b];
+			for (b = 0, s = q * sd[x].alpha2[a]; b < m; ++b) // rotation 1: ((w,y)u,x)v
+				eta1_u[a * m + b] = s * sd[w].alpha2[b] * sd[y].alpha2[b];
+			for (b = 0, s = q * sd[y].alpha2[a]; b < m; ++b) // rotation 2: ((x,w)u,y)v
+				eta2_u[a * m + b] = s * sd[w].alpha2[b] * sd[x].alpha2[b];
 		}
 	}
+}
+
+pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, int32_t m, const double *p, int32_t len, double **eta, int32_t u, int32_t rotation, int32_t max_itr)
+{
+	int32_t i, l, a, b;
+	pc_nni_t *q;
+	const pc_node_t *up = t->node[u], *vp = up->parent;
+	double *cnt, *tmp;
+	if (vp == 0 || up->n_child == 0) return 0;
+	assert(up->n_child == 2); // binary tree only
+	q = (pc_nni_t*)calloc(1, sizeof(pc_nni_t) + sizeof(double) * m * m);
+	q->u = u, q->rotation = rotation;
+	memcpy(q->p, p, sizeof(double) * m * m);
+	cnt = kom_calloc(double, 2 * m * m);
+	tmp = cnt + m * m;
+	for (i = 0; i < max_itr; ++i) {
+		double loglk = 0.0;
+		for (l = 0; l < len; ++l) {
+			double s = 0.0;
+			for (a = 0; a < m; ++a)
+				for (b = 0; b < m; ++b)
+					s += (tmp[a * m + b] = q->p[a * m + b] * eta[l][a * m + b]);
+			loglk += log(s);
+			for (a = 0, s = 1.0 / s; a < m; ++a)
+				for (b = 0; b < m; ++b)
+					cnt[a * m + b] += tmp[a * m + b] * s;
+		}
+		for (a = 0; a < m; ++a) {
+			double s = 0.0;
+			for (b = 0; b < m; ++b) s += cnt[a * m + b];
+			if (s > 0.0)
+				for (b = 0, s = 1.0 / s; b < m; ++b) q->p[a * m + b] = cnt[a * m + b] * s;
+		}
+		q->loglk = loglk;
+	}
+	free(cnt);
+	return q;
 }
 
 /* Compute posterior counts into cnt[n_node*m*m] (zeroed on entry) and return
