@@ -156,6 +156,14 @@ typedef struct {
 	double p[];
 } pc_nni_t;
 
+/* Compute eta~ for all three NNI rotations at each eligible node u (internal,
+ * non-root). eta has shape (n_node, 3, m, m); only entries for eligible nodes
+ * are written. For the original topology ((x,y)u, w)v and the scaled quantity
+ * q = beta~(v,a) / h(u):
+ *   rotation 0 (original):        eta0(a,b) = q * alpha'~(w,a) * alpha'~(x,b) * alpha'~(y,b)
+ *   rotation 1 ((w,y)u, x)v:      eta1(a,b) = q * alpha'~(x,a) * alpha'~(w,b) * alpha'~(y,b)
+ *   rotation 2 ((x,w)u, y)v:      eta2(a,b) = q * alpha'~(y,a) * alpha'~(w,b) * alpha'~(x,b)
+ * Nodes that are leaves or the root are skipped (left uninitialized). */
 void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double *eta)
 { // eta shape: (n,3,m,m)
 	int32_t u;
@@ -184,6 +192,13 @@ void pc_scfg_eta_nni(const pc_tree_t *t, int32_t m, const pc_scfg_t *sd, double 
 	}
 }
 
+/* Run EM on the transition matrix of branch u under a given NNI rotation,
+ * using the precomputed eta~[len][n_node*3*m*m] as sufficient statistics.
+ * For each MSA column l, the branch log-likelihood contribution is
+ *   log( sum_{a,b} p(b|a) * eta~(u,rotation,a,b)[l] )
+ * and the posterior count is the normalized product p(b|a)*eta~(u,rotation,a,b).
+ * Returns an allocated pc_nni_t with the optimized p[m*m] and loglk, or NULL
+ * if u is a leaf or the root. Caller must free the result. */
 pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, int32_t m, const double *p, int32_t len, double **eta, int32_t u, int32_t rotation, int32_t max_itr)
 {
 	int32_t i, l, a, b, off;
@@ -305,6 +320,11 @@ double pc_scfg_em_iter(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter
 	return loglk;
 }
 
+/* Debug/exploratory NNI search. First runs global EM (max_iter rounds) to
+ * obtain initial transition matrices p. Then computes eta~ for all three NNI
+ * rotations at each MSA column via inside-outside + pc_scfg_eta_nni. Finally
+ * calls pc_scfg_em_branch for all eligible nodes and all three rotations,
+ * printing per-node NNI log-likelihoods ("NNI\tu\tlk0\tlk1\tlk2"). */
 void pc_scfg_nni_dbg(const pc_tree_t *t, const pc_msa_t *msa, int32_t max_iter)
 {
 	const int32_t max_iter_br = 10;
