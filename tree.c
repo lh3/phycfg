@@ -150,7 +150,7 @@ void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark
 	}
 	for (i = 0; i < t->n_node; ++i) {
 		const pc_node_t *p = t->node[i];
-		mark[i] = (p->n_child == 0 && strmap_get(h, p->name) != kh_end(h));
+		mark[i] = (p->n_child == 0 && p->name && strmap_get(h, p->name) != kh_end(h));
 	}
 	strmap_destroy(h);
 }
@@ -160,9 +160,8 @@ pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark)
 	int32_t i, n_marked = 0, max_child = 0, *a;
 	pc_tree_t *s = 0;
 	pc_node_t **sub, *p, *q;
-	sub = kom_malloc(pc_node_t*, t->n_node);
+	sub = kom_calloc(pc_node_t*, t->n_node);
 	for (i = 0; i < t->n_node; ++i) {
-		sub[i] = 0;
 		max_child = max_child > t->node[i]->n_child? max_child : t->node[i]->n_child;
 		if (t->node[i]->n_child == 0 && mark[i])
 			++n_marked;
@@ -187,7 +186,10 @@ pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark)
 					a[k++] = p->child[j]->ftime;
 			if (k == 1) { // just one node
 				q = sub[i] = sub[a[0]];
-				q->d += p->d;
+				if (p->d >= 0.0) {
+					if (q->d < 0.0) q->d = p->d;
+					else q->d += p->d;
+				}
 			} else if (k >= 2) {
 				q = pc_node_new(k);
 				q->d = p->d;
@@ -201,6 +203,7 @@ pc_tree_t *pc_tree_reduce(const pc_tree_t *t, const uint8_t *mark)
 		}
 	}
 	q = sub[t->n_node - 1];
+	if (q) q->parent = 0, q->d = -1.0;
 	free(a);
 	free(sub);
 	s = kom_calloc(pc_tree_t, 1);

@@ -443,6 +443,10 @@ int main_scfg(int argc, char *argv[])
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -n INT    max NNI topology search rounds (0 for debug) [%d]\n", nni);
+		fprintf(stderr, "  -m INT    EM iterations per round [%d]\n", max_iter);
+		fprintf(stderr, "  -b INT    EM iterations per branch [%d]\n", max_iter_br);
 		return 1;
 	}
 
