@@ -81,6 +81,8 @@ P(T)&=&\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}\\
 &=&\sum_b\alpha(u,b)\beta(u,b)
 \end{eqnarray*}
 
+Importantly, this equation stands for all $u$.
+
 \subsection{The branch form}
 
 We call $\alpha(v,a)$ and $\beta(v,a)$ the node forms.
@@ -94,14 +96,16 @@ P(T)
 &=&\sum_{a,b}\alpha(u,b)p_u(b|a)\beta(v,a)\alpha'(w,a)
 \end{eqnarray*}
 If $u\not={\rm root}(T)$, let
-$$
-\eta_u(b|a)\triangleq\alpha(u,b)\beta(v,a)\alpha'(w,a)
-$$
+\begin{eqnarray*}
+\eta_u(b|a)&\triangleq&\alpha(u,b)\beta(v,a)\alpha'(w,a) \\
+&=&\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma_1[v,a]\sigma_2\Rightarrow\sigma_1([u,b],*)\sigma_2\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}
+\end{eqnarray*}
+It is the probability of trees that have residue $b$ at $u$ and $a$ at $u$'s parent $v$.
 Then
 $$ P(T)=\sum_{a,b}p_u(b|a)\eta_u(b|a) $$
 When $u$ is an internal node, suppose $u\to(x,y)$. We have
 $$
-\eta_u(b|a)=\beta(v,a)\cdot\alpha'(x,b)\alpha'(y,b)\alpha'(w,a)
+\eta_u(b|a)=\beta(v,a)\cdot\alpha'(w,a)\cdot\alpha'(x,b)\alpha'(y,b)
 $$
 With this equation, if we swap the sibling of $u$ with a child of $u$,
 $\beta(v,a)$ and all three $\alpha'()$ stay the same.
