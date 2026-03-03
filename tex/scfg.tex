@@ -8,6 +8,10 @@
 
 \section{Stochastic Context-Free Grammar (SCFG)}
 
+This section uses the node notation. The next section uses the set notation,
+which is harder to understand initially but is theoretically cleaner and more
+extensible.
+
 \subsection{Notations}
 
 Let $T=(V,E)$ be a rooted \emph{ordered} full binary tree.
@@ -98,7 +102,7 @@ P(T)
 If $u\not={\rm root}(T)$, let
 \begin{eqnarray*}
 \eta_u(b|a)&\triangleq&\alpha(u,b)\beta(v,a)\alpha'(w,a) \\
-&=&\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma_1[v,a]\sigma_2\Rightarrow\sigma_1([u,b],*)\sigma_2\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}
+&=&\Pr\{S_0\stackrel{*}{\Rightarrow}\sigma_1[v,a]\sigma_2\Rightarrow\sigma_1([u,b],\cdot)\sigma_2\stackrel{*}{\Rightarrow}\sigma({\rm root}(T))\}
 \end{eqnarray*}
 It is the probability of trees that have residue $b$ at $u$ and $a$ at $u$'s parent $v$.
 Then
@@ -120,8 +124,8 @@ We will use this convention in the following.
 
 \subsection{The posteriors}
 
-Let $X_{v,a}(\pi)$ be the number of times we see $a$ at node $v$ in a
-derivation. On a single tree, $X_{v,a}$ is either 0 or 1. We can compute
+Let $X_{v,a}(\pi)\in\{0,1\}$ be the number of times we see $a$ at node $v$ in a
+derivation. We can compute
 \begin{eqnarray*}
 x_{v,a}&=&\sum_{\pi}X_{v,a}(\pi)\Pr(\pi|T)\\
 &=&\Pr\{S_0\Rightarrow\sigma_1[v,a]\sigma_2\Rightarrow\sigma_1\sigma(T_v)\sigma_2|S_0\Rightarrow\sigma(T)\}\\
@@ -129,7 +133,7 @@ x_{v,a}&=&\sum_{\pi}X_{v,a}(\pi)\Pr(\pi|T)\\
 &=&\frac{\alpha(v,a)\beta(v,a)}{\sum_b\alpha(v,b)\beta(v,b)}
 \end{eqnarray*}
 Obviously, $\sum_a x_{v,a}=1$, which is expected. Similarly, let
-$X_{u,ab}(\pi)$ be the number of times $a\to b$ changes are observed between
+$X_{u,ab}(\pi)$ be the number of times $a\to b$ changes being observed between
 $u$ and its parent $v$.
 \begin{eqnarray*}
 x_{u,ab}
@@ -204,5 +208,74 @@ This way, $\sum_a\tilde\alpha(v,a)=1$.
 %1 & \frac{p}{1+p} & \frac{q}{1+p} & \frac{p}{1+p} \\
 %\end{array}\right)
 %$$
+
+\section{SCFG of Forest}
+
+Let $\Sigma$ be the residue set and $D$ be the sequence set. We observe labeled
+sequence $(d,a)\in D\times\Sigma$. $v\subset D$ is a \emph{node} and $V\in2^D$
+is the node set. $v$ is a \emph{leaf} (or \emph{external node}) if $|v|=1$; $v$
+is an \emph{internal node} if $|v|>1$.
+$$
+\sigma(v)\triangleq\big\{(d,a):d\in v\big\}
+$$
+gives the set of labeled sequences. For $v,u\in V$, we write $v\to u$ iff
+$v\setminus u\in V$, and write $v\to\{u,w\}$ iff $v=u\cup w$ and $u\cap
+w=\emptyset$. An internal node $v$ is a \emph{deadend} if $\not\exists u$ such
+that $v\to u$. We say $V$ implies a tree if it meets all the following
+conditions: $D\in V$, $\{d\}\in V$ for all $d\in D$, and there are no deadends
+in $V$. Introduce:
+$$ {\rm succ}(v)\triangleq\big\{\{u,w\}:v\to\{u,w\}\big\} $$
+$$ {\rm pred}(u)\triangleq\big\{v:v\to\{u,v\setminus u\}\big\} $$
+which correspond to the set of successor pairs and the set of predecessors, respectively.
+
+$\mathcal{G}(V,\Sigma)=(V_I\times\Sigma\cup\{S_0\},V_E\times\Sigma,\mathcal{R},\mathcal{P})$
+is the SCFG with rules
+$$
+\mathcal{R}\triangleq\big\{[v,a]\Rightarrow\{[u,b],[w,c]\}:v\to\{u,w\}\big\}
+$$
+Rule $[v,a]\Rightarrow\{[u,b],[w,c]\}$ is applied at probability
+$\phi_v(u,w)p_{u|v}(b|a)p_{w|v}(c|a)$, where $\sum_{\{u,w\}\in{\rm succ}(v)}\phi_v(u,w)=1$.
+For convenience, if $v\to\{u,w\}$, $\phi(u|v)=\phi(w|v)=\phi_v(u,w)=\phi_v(w,u)$.
+
+The inside equation becomes:
+\begin{eqnarray*}
+\alpha(v,a)&\triangleq&\Pr\{[v,a]\stackrel{*}{\Rightarrow}\sigma(v)\}\\
+&=&\sum_{\{u,w\}\in{\rm succ}(v)}\sum_{b,c}\Pr\big\{[v,a]\Rightarrow\{[u,b],[w,c]\}\stackrel{*}{\Rightarrow}\sigma(u)\cup\sigma(w)\big\}\\
+&=&\sum_{\{u,w\}\in{\rm succ}(v)}\phi_v(u,w)\alpha'_v(u,a)\alpha'_v(w,a)
+\end{eqnarray*}
+where
+$$ \alpha'_v(u,a)\triangleq\sum_b p_{u|v}(b|a)\alpha(u,b) $$
+We need a subscription at $\alpha'$ because $u$ may have multiple predecessors.
+Similarly
+$$
+\beta(u,b)=\sum_{v\in{\rm pred}(u)}\phi(u|v)\sum_ap_{u|v}(b|a)\beta(v,a)\alpha'_v(v\setminus u,a)
+$$
+We have
+\begin{eqnarray*}
+P(D)&=&\sum_b\alpha(u,b)\beta(u,b)\\
+&=&\sum_b\alpha(u,b)\sum_{v\in{\rm pred}(u)}\phi_v(u|v)\sum_ap_{u|v}(b|a)\beta(v,a)\alpha'_v(v\setminus u,a)\\
+&=&\sum_{v\in{\rm pred}(u)}\phi_v(u|v)\sum_{a,b}p_{u|v}(b|a)\beta(v,a)\alpha(u,b)\alpha'_v(v\setminus u,a)\\
+&=&\sum_{v\in{\rm pred}(u)}\phi_v(u|v)\zeta(u|v)
+\end{eqnarray*}
+where
+$$ \zeta(u|v)\triangleq\sum_{a,b}p_{u|v}(b|a)\eta_{u|v}(b|a) $$
+$$ \eta_{u|v}(b|a)\triangleq\alpha(u,b)\beta(v,a)\alpha'_v(v\setminus u,a) $$
+In the special case that $V$ implies a single binary tree, $|{\rm pred}(u)|=1$
+and $\phi(u|v)=1$ unless $v=D$ is the root. All equations are reduced to the
+tree version in the previous section.
+
+Let $X_{ub|va}(\pi)\in\{0,1\}$ be the number of times $[v,a]\to[u,b]$ being
+observed. Its posterior mean is:
+\begin{eqnarray*}
+x_{ub|va}&=&\mathbb{E}_{\pi|D}\,X_{ub|va}(\pi)\\
+&=&\sum_\pi X_{ub|va}(\pi)\Pr(\pi|D)\\
+&=&\sum_c\Pr\{S_0\Rightarrow\sigma_1[v,a]\sigma_2\Rightarrow\sigma'_1\{[u,b],[w,c]\}\sigma'_2\Rightarrow\sigma'_1\sigma(u)\sigma(w)\sigma'_2|S_0\Rightarrow\sigma(D)\}\\
+&=&\frac{1}{P(D)}\phi(u|v)p_{u|v}(b|a)\eta_{u|v}(b|a)
+\end{eqnarray*}
+We can also derive the posterior expectation of the number of times
+$v\to\{u,v\setminus u\}$ is applied:
+$$
+x_{u|v}=\frac{\phi_v(u|v)\zeta(u|v)}{\sum_{v'\in{\rm pred}(u)}\phi(u|v')\zeta(u|v')}
+$$
 
 \end{document}
