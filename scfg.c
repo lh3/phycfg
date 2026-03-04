@@ -165,7 +165,7 @@ typedef struct {
  *   rotation 1 ((w,y)u, x)v:      eta1(a,b) = q * alpha'~(x,a) * alpha'~(w,b) * alpha'~(y,b)
  *   rotation 2 ((x,w)u, y)v:      eta2(a,b) = q * alpha'~(y,a) * alpha'~(w,b) * alpha'~(x,b)
  * Nodes that are leaves or the root are skipped (left uninitialized). */
-void pc_scfg_eta_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta)
+void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
 { // eta shape: (n,3,m,m)
 	int32_t u, m = t->m;
 	for (u = 0; u < t->n_node - 1; ++u) {
@@ -178,9 +178,9 @@ void pc_scfg_eta_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta)
 		w = vp->child[(vp->child[0] == up)]->ftime;
 		x = up->child[0]->ftime;
 		y = up->child[1]->ftime;
-		eta0_u = &eta[(u * 3 + 0) * m * m];
-		eta1_u = &eta[(u * 3 + 1) * m * m];
-		eta2_u = &eta[(u * 3 + 2) * m * m];
+		eta0_u = &eta3[(u * 3 + 0) * m * m];
+		eta1_u = &eta3[(u * 3 + 1) * m * m];
+		eta2_u = &eta3[(u * 3 + 2) * m * m];
 		for (a = 0; a < m; ++a) {
 			double s, q = sd[v].beta[a] / sd[u].h;
 			for (b = 0, s = q * sd[w].alpha2[a]; b < m; ++b) // rotation 0
@@ -200,7 +200,7 @@ void pc_scfg_eta_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta)
  * and the posterior count is the normalized product p(b|a)*eta~(u,rotation,a,b).
  * Returns an allocated pc_nni_t with the optimized p[m*m] and loglk, or NULL
  * if u is a leaf or the root. Caller must free the result. */
-pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_constype_t ct, int32_t len, double **eta, int32_t u, int32_t rotation, int32_t max_itr)
+pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_constype_t ct, int32_t len, double **eta3, int32_t u, int32_t rotation, int32_t max_itr)
 {
 	int32_t i, l, a, b, off, m = t->m;
 	pc_nni_t *q;
@@ -221,7 +221,7 @@ pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_constype_t ct, int32_t len, d
 			double s = 0.0;
 			for (a = 0; a < m; ++a)
 				for (b = 0; b < m; ++b)
-					s += (tmp[a * m + b] = q->p[a * m + b] * eta[l][off + a * m + b]);
+					s += (tmp[a * m + b] = q->p[a * m + b] * eta3[l][off + a * m + b]);
 			loglk += log(s);
 			for (a = 0, s = 1.0 / s; a < m; ++a)
 				for (b = 0; b < m; ++b)
@@ -340,7 +340,7 @@ double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, pc_scfg_t
 void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t max_iter, int32_t max_iter_br)
 {
 	int32_t m = t->m, k, l, u;
-	double logh, loglk, **eta;
+	double logh, loglk, **eta3;
 	pc_scfg_t *sd;
 	pc_nni_t **nni;
 
@@ -351,14 +351,14 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_
 		printf("LK\t%d\t%.6f\n", k, loglk);
 	}
 
-	eta = kom_malloc(double*, msa->len);
-	eta[0] = kom_calloc(double, (size_t)t->n_node * 3 * m * m * msa->len);
+	eta3 = kom_malloc(double*, msa->len);
+	eta3[0] = kom_calloc(double, (size_t)t->n_node * 3 * m * m * msa->len);
 	for (l = 1; l < msa->len; ++l)
-		eta[l] = eta[l - 1] + t->n_node * 3 * m * m;
+		eta3[l] = eta3[l - 1] + t->n_node * 3 * m * m;
 	for (l = 0, loglk = 0.0, logh = 0.0; l < msa->len; ++l) {
 		loglk += pc_scfg_inside(t, msa, l, sd);
 		pc_scfg_outside(t, sd);
-		pc_scfg_eta_nni(t, sd, eta[l]);
+		pc_scfg_eta3_nni(t, sd, eta3[l]);
 		for (u = 0; u < t->n_node; ++u)
 			logh += log(sd[u].h);
 	}
@@ -366,15 +366,15 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_
 
 	nni = kom_calloc(pc_nni_t*, 3 * t->n_node);
 	for (u = 0; u < t->n_node; ++u) {
-		nni[u * 3 + 0] = pc_scfg_em_branch(t, ct, msa->len, eta, u, 0, max_iter_br);
-		nni[u * 3 + 1] = pc_scfg_em_branch(t, ct, msa->len, eta, u, 1, max_iter_br);
-		nni[u * 3 + 2] = pc_scfg_em_branch(t, ct, msa->len, eta, u, 2, max_iter_br);
+		nni[u * 3 + 0] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 0, max_iter_br);
+		nni[u * 3 + 1] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 1, max_iter_br);
+		nni[u * 3 + 2] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 2, max_iter_br);
 		if (nni[u * 3 + 0] == 0) continue;
 		printf("NNI\t%d\t%.6f\t%.6f\t%.6f\n", u, nni[u * 3 + 0]->loglk, nni[u * 3 + 1]->loglk, nni[u * 3 + 2]->loglk);
 	}
 	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
 	free(nni);
-	free(eta[0]); free(eta);
+	free(eta3[0]); free(eta3);
 	free(sd);
 }
 
@@ -388,27 +388,27 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_
 double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t max_iter_br)
 {
 	int32_t l, u, r, m = t->m, m2 = m * m, best_u = -1, best_r = 0;
-	double **eta, best_delta = 0.0;
+	double **eta3, best_delta = 0.0;
 	pc_scfg_t *sd;
 	pc_nni_t **nni;
 
 	sd = pc_scfg_new(t->n_node, m);
 
-	eta = kom_malloc(double*, msa->len);
-	eta[0] = kom_malloc(double, (size_t)msa->len * t->n_node * 3 * m2);
+	eta3 = kom_malloc(double*, msa->len);
+	eta3[0] = kom_malloc(double, (size_t)msa->len * t->n_node * 3 * m2);
 	for (l = 1; l < msa->len; ++l)
-		eta[l] = eta[l-1] + t->n_node * 3 * m2;
+		eta3[l] = eta3[l-1] + t->n_node * 3 * m2;
 	for (l = 0; l < msa->len; ++l) {
 		pc_scfg_inside(t, msa, l, sd);
 		pc_scfg_outside(t, sd);
-		pc_scfg_eta_nni(t, sd, eta[l]);
+		pc_scfg_eta3_nni(t, sd, eta3[l]);
 	}
 
 	nni = kom_calloc(pc_nni_t*, 3 * t->n_node);
 	for (u = 0; u < t->n_node; ++u) {
-		nni[u*3+0] = pc_scfg_em_branch(t, ct, msa->len, eta, u, 0, max_iter_br);
-		nni[u*3+1] = pc_scfg_em_branch(t, ct, msa->len, eta, u, 1, max_iter_br);
-		nni[u*3+2] = pc_scfg_em_branch(t, ct, msa->len, eta, u, 2, max_iter_br);
+		nni[u*3+0] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 0, max_iter_br);
+		nni[u*3+1] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 1, max_iter_br);
+		nni[u*3+2] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 2, max_iter_br);
 		if (nni[u*3+0] == NULL) continue;
 		for (r = 1; r <= 2; ++r) {
 			double delta = nni[u*3+r]->loglk - nni[u*3+0]->loglk;
@@ -436,6 +436,6 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t 
 	}
 
 	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
-	free(nni); free(eta[0]); free(eta); free(sd);
+	free(nni); free(eta3[0]); free(eta3); free(sd);
 	return best_delta;
 }
