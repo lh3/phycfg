@@ -271,8 +271,11 @@ int main_scfg(int argc, char *argv[])
 		}
 		diff = kom_calloc(double, t->n_node);
 		pc_scfg_cmp_ct(t, msa, PC_CT_REV, PC_CT_NULL, max_iter_br, diff);
-		for (i = 0; i < t->n_node; ++i)
-			fprintf(stderr, "CD\t%d\t%.6f\n", i, diff[i]);
+		for (i = 0; i < t->n_node; ++i) {
+			const pc_node_t *v = t->node[i];
+			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
+			        v->name && v->name[0] ? v->name : ".", diff[i]);
+		}
 		free(diff);
 	} else {
 		pc_scfg_nni_dbg(t, msa, ct, max_iter, max_iter_br);
