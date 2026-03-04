@@ -69,10 +69,15 @@ void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag);
 
 char **pc_list_read(const char *o, int *n_);
 
+pc_scfg_t *pc_scfg_new(int32_t n_node, int32_t m);
+void pc_transmat_init(pc_tree_t *t);
 double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd);
 void pc_scfg_outside(const pc_tree_t *t, pc_scfg_t *sd);
 void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_t *sd, double *eta);
 double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt);
+double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, pc_scfg_t *sd);
+double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t max_iter_br);
+void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t max_iter, int32_t max_iter_br);
 
 #ifdef __cplusplus
 }

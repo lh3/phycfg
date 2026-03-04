@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -7,8 +8,8 @@
 
 int main_view(int argc, char *argv[]);
 int main_msaflt(int argc, char *argv[]);
-int main_scfg(int argc, char *argv[]);
 int main_reroot(int argc, char *argv[]);
+int main_scfg(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -206,5 +207,66 @@ int main_reroot(int argc, char *argv[])
 	puts(s);
 	free(s);
 	pc_tree_destroy(tree);
+	return 0;
+}
+
+int main_scfg(int argc, char *argv[])
+{
+	ketopt_t o = KETOPT_INIT;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0;
+	pc_constype_t ct = PC_CT_NULL;
+	pc_scfg_t *sd;
+
+	while (ketopt(&o, argc, argv, 1, "m:b:n:r", 0) >= 0) {
+		if (o.opt == 'n') nni = atoi(o.arg);
+		else if (o.opt == 'm') max_iter = atoi(o.arg);
+		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
+		else if (o.opt == 'r') ct = PC_CT_REV;
+	}
+	if (argc - o.ind < 2) {
+		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -n INT    max NNI topology search rounds (0 for debug) [%d]\n", nni);
+		fprintf(stderr, "  -m INT    EM iterations per round [%d]\n", max_iter);
+		fprintf(stderr, "  -b INT    EM iterations per branch [%d]\n", max_iter_br);
+		return 1;
+	}
+
+	pc_tree_t *t = pc_tree_read(argv[o.ind]);
+	if (t == NULL) return 1;
+	pc_msa_t *msa = pc_msa_read(argv[o.ind + 1]);
+	if (msa == NULL) { pc_tree_destroy(t); return 1; }
+
+	pc_msa_encode(msa, pc_msa_infer_rt(msa));
+	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
+	pc_tree_match_msa(t, msa);
+	sd = pc_scfg_new(t->n_node, t->m);
+
+	if (nni > 0) {
+		int32_t k, max = 0;
+		char *str = 0;
+		double loglk;
+		pc_transmat_init(t);
+		for (i = 0; i < max_iter; ++i) {
+			loglk = pc_scfg_em(t, msa, ct, sd);
+			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
+		}
+		for (k = 0; k < nni; ++k) {
+			double diff = pc_scfg_nni(t, msa, ct, max_iter_br);
+			if (diff == 0.0) break;
+			for (i = 0; i < max_iter; ++i)
+				loglk = pc_scfg_em(t, msa, ct, sd);
+			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
+		}
+		pc_tree_format(t, &str, &max);
+		puts(str);
+		free(str);
+	} else {
+		pc_scfg_nni_dbg(t, msa, ct, max_iter, max_iter_br);
+	}
+
+	free(sd);
+	pc_tree_destroy(t);
+	pc_msa_destroy(msa);
 	return 0;
 }
