@@ -33,6 +33,8 @@ typedef struct {
 	uint8_t **msa; // len rows and n_seq columns
 } pc_msa_t;
 
+typedef enum { PC_CT_NULL, PC_CT_REV } pc_constype_t;
+
 typedef struct {
 	double h, *alpha, *alpha2, *beta; // pointers point to x[]
 } pc_scfg_t;
