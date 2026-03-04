@@ -213,15 +213,16 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0;
 	pc_constype_t ct = PC_CT_NULL;
 	pc_scfg_t *sd;
 
-	while (ketopt(&o, argc, argv, 1, "m:b:n:r", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "m:b:n:rt", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'm') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 		else if (o.opt == 'r') ct = PC_CT_REV;
+		else if (o.opt == 't') test_mode = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -261,6 +262,18 @@ int main_scfg(int argc, char *argv[])
 		pc_tree_format(t, &str, &max);
 		puts(str);
 		free(str);
+	} else if (test_mode) {
+		double loglk, *diff;
+		pc_transmat_init(t);
+		for (i = 0; i < max_iter; ++i) {
+			loglk = pc_scfg_em(t, msa, ct, sd);
+			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
+		}
+		diff = kom_calloc(double, t->n_node);
+		pc_scfg_cmp_ct(t, msa, PC_CT_REV, PC_CT_NULL, max_iter_br, diff);
+		for (i = 0; i < t->n_node; ++i)
+			fprintf(stderr, "CD\t%d\t%.6f\n", i, diff[i]);
+		free(diff);
 	} else {
 		pc_scfg_nni_dbg(t, msa, ct, max_iter, max_iter_br);
 	}

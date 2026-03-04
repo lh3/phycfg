@@ -193,6 +193,45 @@ void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
 	}
 }
 
+static void pc_scfg_cons(const double *cnt, int32_t m, pc_constype_t ct, double *tmp)
+{
+	int32_t a, b;
+	if (ct == PC_CT_REV) {
+		for (a = 0; a < m; ++a) {
+			tmp[a * m + a] = cnt[a * m + a];
+			for (b = 0; b < a; ++b)
+				tmp[a * m + b] = tmp[b * m + a] = .5 * (cnt[a * m + b] + cnt[b * m + a]);
+		}
+	} else { // PC_CT_NULL or unknown
+		memcpy(tmp, cnt, sizeof(double) * m * m);
+	}
+}
+
+static void pc_scfg_c2p(int32_t m, const double *c, double *p)
+{
+	int32_t a, b;
+	for (a = 0; a < m; ++a) {
+		double s = 0.0;
+		for (b = 0; b < m; ++b) s += c[a*m + b];
+		if (s > 0.0)
+			for (b = 0, s = 1.0 / s; b < m; ++b)
+				p[a * m + b] = c[a * m + b] * s;
+	}
+}
+
+static void pc_scfg_cnt2p(pc_tree_t *t, const double *cnt, pc_constype_t ct)
+{
+	int32_t u, m = t->m;
+	double *tmp = kom_calloc(double, m * m);
+	for (u = 0; u < t->n_node; ++u) {
+		const double *cnt_u = cnt + (size_t)u * m * m;
+		double *p_u = t->p + (size_t)u * m * m;
+		pc_scfg_cons(cnt_u, m, ct, tmp);
+		pc_scfg_c2p(m, tmp, p_u);
+	}
+	free(tmp);
+}
+
 /* Run EM on the transition matrix of branch u under a given NNI rotation,
  * using the precomputed eta~[len][n_node*3*m*m] as sufficient statistics.
  * For each MSA column l, the branch log-likelihood contribution is
@@ -202,18 +241,20 @@ void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
  * if u is a leaf or the root. Caller must free the result. */
 pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_constype_t ct, int32_t len, double **eta3, int32_t u, int32_t rotation, int32_t max_itr)
 {
-	int32_t i, l, a, b, off, m = t->m;
+	int32_t i, l, a, b, off, m = t->m, is3 = (rotation >= 0 && rotation < 3);
 	pc_nni_t *q;
 	const pc_node_t *up = t->node[u], *vp = up->parent;
-	double *cnt, *tmp;
-	if (vp == 0 || up->n_child == 0) return 0;
-	assert(up->n_child == 2); // binary tree only
+	double *cnt, *tmp, *tmp2;
+	if (vp == 0) return 0; // ignore root
+	if (is3 && up->n_child == 0) return 0;
+	assert(up->n_child == 2 || up->n_child == 0); // binary tree only
 	q = (pc_nni_t*)calloc(1, sizeof(pc_nni_t) + sizeof(double) * m * m);
 	q->u = u, q->rotation = rotation;
 	memcpy(q->p, t->p + (size_t)u * m * m, sizeof(double) * m * m);
-	cnt = kom_calloc(double, 2 * m * m);
+	cnt = kom_calloc(double, 3 * m * m);
 	tmp = cnt + m * m;
-	off = (u * 3 + rotation) * m * m;
+	tmp2 = tmp + m * m;
+	off = (is3? u * 3 + rotation : u) * m * m; // whether eta3 is calculated by _eta3_nni() or _eta()
 	for (i = 0; i < max_itr; ++i) {
 		double loglk = 0.0;
 		memset(cnt, 0, sizeof(double) * m * m);
@@ -227,12 +268,8 @@ pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_constype_t ct, int32_t len, d
 				for (b = 0; b < m; ++b)
 					cnt[a * m + b] += tmp[a * m + b] * s;
 		}
-		for (a = 0; a < m; ++a) {
-			double s = 0.0;
-			for (b = 0; b < m; ++b) s += cnt[a * m + b];
-			if (s > 0.0)
-				for (b = 0, s = 1.0 / s; b < m; ++b) q->p[a * m + b] = cnt[a * m + b] * s;
-		}
+		pc_scfg_cons(cnt, m, ct, tmp2);
+		pc_scfg_c2p(m, tmp2, q->p);
 		q->loglk = loglk;
 	}
 	free(cnt);
@@ -288,38 +325,6 @@ double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_t *sd, 
 	}
 	free(sib); free(tmp);
 	return loglk;
-}
-
-void pc_scfg_cons(const double *cnt, int32_t m, pc_constype_t ct, double *tmp)
-{
-	int32_t a, b;
-	if (ct == PC_CT_REV) {
-		for (a = 0; a < m; ++a) {
-			tmp[a * m + a] = cnt[a * m + a];
-			for (b = 0; b < a; ++b)
-				tmp[a * m + b] = tmp[b * m + a] = .5 * (cnt[a * m + b] + cnt[b * m + a]);
-		}
-	} else { // PC_CT_NULL or unknown
-		memcpy(tmp, cnt, sizeof(double) * m * m);
-	}
-}
-
-void pc_scfg_cnt2p(pc_tree_t *t, const double *cnt, pc_constype_t ct)
-{
-	int32_t a, b, u, m = t->m;
-	double *tmp = kom_calloc(double, m * m);
-	for (u = 0; u < t->n_node; ++u) {
-		const double *cnt_u = cnt + (size_t)u * m * m;
-		double *p_u = t->p + (size_t)u * m * m;
-		pc_scfg_cons(cnt_u, m, ct, tmp);
-		for (a = 0; a < m; ++a) {
-			double s = 0.0;
-			for (b = 0; b < m; ++b) s += tmp[a*m + b];
-			if (s > 0.0)
-				for (b = 0, s = 1.0 / s; b < m; ++b) p_u[a*m + b] = tmp[a*m + b] * s;
-		}
-	}
-	free(tmp);
 }
 
 double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, pc_scfg_t *sd)
@@ -438,4 +443,29 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t 
 	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
 	free(nni); free(eta3[0]); free(eta3); free(sd);
 	return best_delta;
+}
+
+void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct0, pc_constype_t ct1, int32_t max_iter_br, double *diff)
+{
+	int32_t l, u, m = t->m, m2 = m * m;
+	double **eta;
+	pc_scfg_t *sd;
+
+	sd = pc_scfg_new(t->n_node, m);
+	eta = kom_malloc(double*, msa->len);
+	eta[0] = kom_malloc(double, (size_t)msa->len * t->n_node * m2);
+	for (l = 1; l < msa->len; ++l)
+		eta[l] = eta[l-1] + t->n_node * m2;
+	for (l = 0; l < msa->len; ++l) {
+		pc_scfg_inside(t, msa, l, sd);
+		pc_scfg_outside(t, sd);
+		pc_scfg_eta(t, sd, eta[l]);
+	}
+	for (u = 0; u < t->n_node; ++u) {
+		pc_nni_t *nni0 = pc_scfg_em_branch(t, ct0, msa->len, eta, u, -1, max_iter_br);
+		pc_nni_t *nni1 = pc_scfg_em_branch(t, ct1, msa->len, eta, u, -1, max_iter_br);
+		diff[u] = nni0 == NULL? 0.0 : nni1->loglk - nni0->loglk;
+		free(nni0); free(nni1);
+	}
+	free(eta[0]); free(eta); free(sd);
 }
