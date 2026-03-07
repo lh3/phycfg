@@ -461,14 +461,6 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max
 	return best_delta;
 }
 
-pc_model_t pc_scfg_str2cons(const char *model)
-{
-	if (strcmp(model, "null") == 0 || strcmp(model, "NULL") == 0) return PC_MD_NULL;
-	if (strcmp(model, "rev") == 0 || strcmp(model, "GTR") == 0 || strcmp(model, "gtr") == 0) return PC_MD_REV;
-	if (strcmp(model, "HKY") == 0 || strcmp(model, "hky") == 0) return PC_MD_HKY;
-	return PC_MD_ERR;
-}
-
 void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_model_t ct1, int32_t max_iter_br, double *diff)
 {
 	int32_t l, u, m = t->m, m2 = m * m;

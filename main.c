@@ -221,8 +221,8 @@ int main_scfg(int argc, char *argv[])
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'x') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
-		else if (o.opt == 'm') ct = pc_scfg_str2cons(o.arg);
-		else if (o.opt == 't') ct0 = pc_scfg_str2cons(o.arg), test_mode = 1;
+		else if (o.opt == 'm') ct = pc_model_from_str(o.arg);
+		else if (o.opt == 't') ct0 = pc_model_from_str(o.arg), test_mode = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
