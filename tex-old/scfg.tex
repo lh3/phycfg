@@ -1,0 +1,494 @@
+\newif\ifPDF
+\ifx\pdfoutput\undefined\PDFfalse
+\else\ifnum\pdfoutput > 0\PDFtrue
+	\else\PDFfalse
+	\fi
+\fi
+
+\ifPDF
+	\documentclass[pdftex,11pt]{article}
+	\RequirePackage[hyperindex,colorlinks,plainpages=false]{hyperref}
+	\hypersetup{pdfauthor={Heng Li},linkcolor=blue,citecolor=blue,urlcolor=blue}
+	\usepackage{graphicx}
+	\DeclareGraphicsRule{*}{mps}{*}{}
+\else
+	\documentclass[11pt]{article}
+	\usepackage{graphicx}
+\fi
+
+\newcommand{\pa}[2]{#1\otimes #2}
+
+\addtolength{\textwidth}{3cm}
+\addtolength{\hoffset}{-1.5cm}
+\addtolength{\textheight}{4cm}
+\addtolength{\voffset}{-2cm}
+
+\makeindex
+
+\title{Modelling Sequence Evolution by Stochastic Context-Free Grammar}
+%\author{Heng Li and Richard Durbin}
+\date{26 November 2006}
+
+\usepackage{natbib}
+\bibliographystyle{apalike}
+
+\begin{document}
+
+\maketitle
+
+%\begin{abstract}
+%  Stochastic context-free grammar (SCFG) is presented to model the
+%  evolution of molecular sequences.  Fundamentally, the SCFG model is
+%  almost identical to the classic likelihood model. However, working
+%  with the inside-outside algorithm, SCFG smoothly and strictly gives
+%  the posterior distributions of ancestral states and posterior
+%  substitution matrix, which are usually complex to be calculated
+%  directly in the classic likelihood framework. At the same time, SCFG
+%  reveals the possibility to estimate parameters with expectation
+%  maximization (EM). It also natrually implies the parsimony model when
+%  the CYK algorithm is in use.
+%\end{abstract}
+%
+%\section{Introduction}
+
+%\subsection{ARG-CFG}
+%I will not use strict language to describe the ARG-CFG. The model below
+%can also be extended. I just show the model in a way that is best suited
+%to ARG.
+%
+%Let $\mathcal{G}$ is an ARG constructed from $M$ people with $N$ sites.
+%We label the recombination and coalescent nodes as $\{1,2,\ldots,n\}$.
+%The root is always $n$.  Let $T^u$ be the marginal tree sliced from
+%$\mathcal{G}$ at site $u$.  It should be noted that nodes should be
+%present on the edges even if they have just one child.  For example,
+%given an ARG $\tt (((1[m1],(2)5[r2])6,((5,3)7[m2],4)8[m3])9$, the
+%marginal trees can be $\tt T^3=((1,(2)5)6,((3)7,4)8)9$ and $\tt
+%T^1=T^2=((1)6,(((2)5,3)7,4)8)9$. This ARG corresponds to the example
+%fig1 in Mark's paper, where $1=100$, $2=010$, $3=001$, $4=011$,
+%$5=\mathrm{reombination}$. The first tree is fig1C, and the second is
+%fig1B.  Sorry that I am still using my notation for ARG, because I think
+%it is more concise.
+%
+%Define topological function $\delta^u_i(j,k)=1$ iff $j$ and $k$ are the
+%two children of $i$ in tree $T^u$; otherwise $\delta^u_i(j,k)=0$. Also
+%define $\delta^u_i(j)=1$ iff $j$ is the child of $i$ and $i$ is a
+%single-child node (e.g. node 5 in $T^3$).
+%$\delta^u_i(l)\cdot\delta^u_i(j,k)=0$ stands for all $i,j,k,l$ because
+%$i$ can either be single-child or double-child.  Then we can define the
+%SCFG.
+%
+%Nonterminal symbols: $[i,a,u]$, where $i$ is a node, $a\in\{0,1\}$ and
+%$u$ is the site.  $S_0$ is the start non-terminal. Terminals are `(',
+%`,', `)', `0' and `1'. Here are the production rules:
+%\begin{center}
+%\begin{tabular}{lll}
+%  \hline
+%  Type & Rule & Probability \\
+%  \hline
+%  Start $S_0$ & $S_0\rightarrow [n,a,u]$ & $q(a)r(u)$ \\
+%  $i$ is single-child in $T^u$ & $[i,a,u]\rightarrow([j,b,u])$ & $\delta_i^u(j)p_{ij}(b|a)$ \\
+%  $i$ is double-child in $T^u$ & $[i,a,u]\rightarrow([j,b,u],[k,c,u])$ & $\delta_i^u(j,k)p_{ij}(b|a)p_{ik}(c|a)$ \\
+%  \hline
+%\end{tabular}
+%\end{center}
+%This SCFG generates all the marginal trees and nothing else.
+
+%In molecular phylogenetics, the three major inference methods are
+%pairwise distances, maximum parsimony (MP) and the maximum likelihood
+%(ML)~\citep{treereview-whelan01,book-felsenstein04}. Of the three
+%methods, ML might be more frequently used in the literature, probably
+%due to its great flexibility, versatility and robustness. ML inference
+%not only permits the analyses of the evolutionary history with complex
+%and precise models, but also opens a varity of possibilities for
+%parameters estimation and statistical testing.  It has already achieved
+%a great amount of meaningful results in phylogenetics.
+%
+%One of the intriguing topic in the ML framework is to map ancestral
+%character states.  One groups of works focus on sophisticated sampling
+%methods in a Bayesian
+%framework~\citep{scfg-nielsen02,scfg-huelsenbeck03,scfg-pagel04,scfg-bollback06,scfg-ronquist04}.
+%The other group solved this problem by theoretical analyses when they
+%tried to implement the EM algorithms~\citep{em-dempster77} to estimate
+%rate matrix and branch
+%lengths~\citep{em-friedman02,em-holmes02,em-siepel04,scfg-klosterman06}.
+%Possibly the second group thought the posterior ancestral states
+%distribution was just an intermediate result. Their theory has not
+%seemed to be widely used in mapping ancestral states.
+%
+%Theoretical deduction of the EM algorithm not only yields posterior
+%ancestral states distribution, but also gives the posterior substitution
+%matrices at each branch of a tree.  This was first implied by Friedman
+%{\it at al.} in case of reversible evolution, and then futher developed
+%independently by Holmes and Rubin, and by Siepel and Haussler.  Both are
+%applicable to irreversible evolution. Interestingly, Holmes and Rubin
+%symmetrized their substitution matrix at the last step. And thus their
+%work was concluded to be best suited to reversible models by a more
+%recent publication~\citep{scfg-klosterman06} which also established a
+%theoretical framework for generalized rate matrix, including
+%substitution matrix, estimations.
+%
+%In this paper, we recovered the previous results in calculating
+%posterior distribution of ancestral states and substitution matrices at
+%each branch.  These results are achieved with a stochastic context-free
+%grammar (SCFG)~\citep{durbin98}, which resembles the current likelihood
+%model in many ways, but brings new tools in favour of the inside-outside
+%algorithm, an algorithm native to the SCFG theory.
+%
+\section{Methods and Results}
+
+\subsection{Brief introduction to stochastic context-free grammar}
+Context-free grammar (CFG) provides a framework for modelling some
+strings of symbols.  First developed by computational
+linguists~\citep{scfg-chomsky56}, CFGs, with long range dependencies such
+as parentheses, have come to play an important role in computer science,
+for example for designing compilers for computer languages. In the area
+of bioinformatics, CFGs are mainly used to model the secondary
+structures of RNAs~\citep{scfg-eddy94,durbin98}. In this paper, we will
+find its another application in modelling sequence evolution.
+
+A CFG is a type of transformational grammar. A transformation grammar is
+comprised of four components: a set of terminal symbols which can be
+observed, a set of nonterminal symbols which are hidden and can be
+derived, a set of production rules which define the transformations, and
+a start nonterminal symbol from which all strings are generated.  In a
+transformational grammar, production rules are presented in a form like
+$\alpha\rightarrow\gamma$, where $\alpha$ is a string containing at
+least one nonterminal symbol, and $\gamma$ is any string.  The
+definition of a CFG further requires that there should be only one
+symbol in left-hand side of each rule.  A rule like $SS\rightarrow S$ is
+allowed in an unrestricted transformational grammar, but not in a CFG.
+
+An example of a CFG that can generate a palindrome language is:
+\[
+S\rightarrow aSa|bSb|aa|bb
+\]
+In this example, $\{S\}$ is the nonterminal set, $\{a,b\}$ is the
+terminal set, $S$ is the start symbol, and $\{S\rightarrow
+aSa,S\rightarrow bSb,S\rightarrow aa,S\rightarrow bb\}$ is the set of
+production rules.  A string like $baabbaab$ can be generated in the
+following procedure:
+\[
+S\Rightarrow bSb\Rightarrow baSab\Rightarrow baaSaab\Rightarrow baabbaab
+\]
+This procedure is called a derivation and will be denoted by $\pi$ in
+this paper.  A derivation is a series of consecutive rules deriving from
+the start state to a string of terminal states.
+
+In the above example, $baabbaab$ correponds to one derivation. However,
+if we add a new rule `$S\rightarrow SS$', the following derivation can
+also result in the same string:
+\[
+S\Rightarrow SS\Rightarrow bSbbSb\Rightarrow baabbaab
+\]
+Which derivation is `preferred'? In fact, we can assign a probability to
+each production rule and require each nonterminal symbol is transformed
+with a probability $1.0$.  Assuming rules are applied independently
+(Markov property), we are able to find the most probable derivation with
+the CYK algorithm, to calculate the probabilities of strings or
+derivations with the inside or outside algorithm, and to estimate the
+parameters or their posterior distribution with the inside-outside
+algorithm.  A CFG with probabilities assigned in this way is called a
+stochastic context-free grammar, or an SCFG in brief.
+
+\subsection{The construction of the SCFG}
+Let $V$ be a set of leaves, $\mathcal{T}$ be a set of {\it binary
+  rooted} trees whose leaf set is $V$. We consider two internal nodes
+are the same if and only if the sets of leaves descend from the two
+nodes are identical. Then we can label all the nodes as
+$\mathcal{U}(\mathcal{T})=\{1,2,\ldots,n\}$. For convenience, the root
+node, which will appear in each tree in $\mathcal{T}$, is always labeled
+as $n$.
+
+To describe the topologies in $\mathcal{T}$, we introduce a function
+$\delta_i(j,k)$, $1\leq i,j,k\leq n$.  The value of this function is not
+zero only if: i) node $j$ and $k$ are $i$'s children in a certain tree
+$T\in\mathcal{T}$ and ii) $j\leq k$. We can give $\delta_i(j,k)$ a
+probabilistic interpretion by requring $\sum_{j,k}\delta_i(j,k)=1$.
+
+Let $\Sigma$ be an alphabet. Its elements are called
+characters. Practically, $\Sigma$ may be the set of the four
+nucleotides, of the 20 amino acids, or of present/absent states of a
+marker.
+
+Based on $\mathcal{T}$ and $\Sigma$, an SCFG can be constructed to
+generate a binary rooted tree together with the characters assigned to
+the leaves.  Except the start symbol $S_0$, a nonterminal symbol of the
+SCFG is a pair $[i,a]\in \mathcal{U}(\mathcal{T})\times\Sigma$; a
+terminal symbol is $a\in\Sigma\cup\{\mbox{`(',`)',`,'}\}$. The
+production rules and their probabilities are presented below:
+\begin{center}
+\begin{tabular}{lll}
+  \hline
+  Type & Rule & Probability \\
+  \hline
+  start symbol & $S_0\rightarrow[n,a]$ & $q(a)$ \\
+  $i$ is internal & $[i,a]\rightarrow([j,b],[k,c])$ & $p_{ij}(b|a)p_{ik}(c|a)\delta_i(j,k)$ \\
+  $i$ is external & $[i,a]\rightarrow v$ & $1$ \\
+  \hline
+\end{tabular}
+\end{center}
+where $p_{ij}(b|a)$ is the probability that character $a$ is transformed
+to $b$ on branch $(i,j)$, and $q(a)$ is the probability of character $a$
+appearing at the root. If we require \mbox{$\sum_a q(a)=1$}, and $\sum_b
+p_{ij}(b|a)=1$, all the nonterminal symbols will be derived with a
+probability $1.0$. The grammar given above is an SCFG, an SCFG that
+generates a string describing a tree over leaves in the New Hampshire
+format.
+
+To help the description of algorithms, we write $T_i$, $1\leq i\leq n$,
+as the subtree descended from node $i$, and write $\sigma(T_i)$ as the
+New Hampshire string for $T_i$.  A notation like $\sigma_1$ or
+$\sigma_2$ always denotes a string.
+
+\subsection{The inside algorithm}
+In the SCFG framework, the inside algorithm is used to calculate the
+probability of a string being generated from a symbol. In our particular
+case, it is $\Pr\{[i,a]\Rightarrow\sigma(T_i)\}$, the probability of a
+tree string being generated from $[i,a]$. This probability $\alpha(i,a)$
+can be recursively calculated as follows:
+\begin{eqnarray}\label{equ:in}
+  \alpha(i,a)&=&\Pr\{[i,a]\Rightarrow\sigma(T_i)\}\nonumber\\
+  &=&\sum_{j,k}\sum_{b,c}\Pr\{[i,a]\Rightarrow([j,b],[k,c])\Rightarrow\sigma(T_j)\sigma(T_k)\}\nonumber\\
+  &=&\sum_{j,k}{\delta_i(j,k)\sum_b{\alpha(j,b)p_{ij}(b|a)}\sum_c{\alpha(k,c)p_{ik}(c|a)}}
+\end{eqnarray}
+Then the probability of generating $\mathcal{T}$ from $S_0$ is:
+\begin{eqnarray}
+  P(\mathcal{T})&=&\Pr\{S_0\Rightarrow\sigma(\mathcal{T})\}\nonumber\\
+  &=&\sum_v q(a)\Pr\{S_0\Rightarrow[n,a]\Rightarrow\sigma(\mathcal{T})\}\nonumber\\
+  &=&\sum_v q(a)\alpha(n,a)
+\end{eqnarray}
+The inside algorithm, as well as the CYK algorithms, works in a
+bottom-up way.  In calculation, children are always calculated earlier
+than their parents; $\alpha(i,a)$ for leaves will be set first.
+
+In case where $\mathcal{T}=\{T\}$, the inside algorithm for this SCFG is
+identical to Felsenstein's {\it pruning}
+algorithm~\citep{felsenstein81a}.
+
+\subsection{The posterior expectation of ancestral character states}
+
+The inside algorithm calculates the probability of a tree. However, in
+order to calculate the posterior expectation, we also need to calculate
+some probabilities in a top-down way. This is the outside algorithm.
+The equivalent algorithm has already been described in previous
+works~\citep{em-holmes02,em-siepel04}.
+
+The outside algorithm calculates the probability of a part of derivation
+which stops at a symbol $[i,a]$. For the root node $n$, the calculation
+is simple:
+\begin{eqnarray}
+\beta(n,a)=\Pr\{S_0\Rightarrow[n,a]\}=q(a)
+\end{eqnarray}
+For $i<n$, this probability $\beta(i,a)$ can also be recursively calculated:
+\begin{eqnarray}\label{equ:out}
+  \beta(i,a)&=&\Pr\{S_0\Rightarrow\sigma_1[i,a]\sigma_2\}\nonumber\\
+  &=&\Pr\{S_0\Rightarrow\sigma_1[i,a]\sigma_2,\mbox{$i$ is the left child}\}\nonumber\\
+  &&+\Pr\{S_0\Rightarrow\sigma_1[i,a]\sigma_2,\mbox{$i$ is the right child}\}\nonumber\\
+  &=&\sum_{j,k}\sum_{b,c}\Pr\{S_0\Rightarrow\sigma_1[k,c]\sigma'_2\Rightarrow\sigma_1([i,a],[j,b])\sigma'_2\Rightarrow\sigma_1[i,a]\sigma(T_j)\sigma'_2\}\nonumber\\
+  &&+\sum_{j,k}\sum_{b,c}\Pr\{S_0\Rightarrow\sigma'_1[k,c]\sigma_2\Rightarrow\sigma'_1([j,b],[i,a])\sigma_2\Rightarrow\sigma'_1\sigma(T_j)[i,a]\sigma_2\}\nonumber\\
+  &=&\sum_{j,k}\delta_k(j,i)\sum_{b,c}{\alpha(j,b)\beta(k,c)p_{kj}(y|z)p_{ki}(v|z)} \nonumber \\
+  &&+\sum_{j,k}\delta_k(i,j)\sum_{b,c}{\alpha(j,b)\beta(k,c)p_{ki}(v|z)p_{kj}(y|z)}
+\end{eqnarray}
+Note that given a single tree, node $i$ can either be the left or the
+right child, but cannot be the both.  As a result, one of
+$\delta_k(j,i)$ and $\delta_k(i,j)$ must equal to zero.
+
+The combination of inside and outside algorithms, usually termed as the
+inside-outside algorithm, provides a way to calculate the posterior
+expectation and variance of some statistics.
+
+Let $X_{ijk,abc}(\pi)$ be the number of times when the rule
+$[i,a]\rightarrow([j,b],[k,c])$ is in use given a derivation $\pi$. A
+derivation $\pi$ is a random variable, and so it is with
+$X_{ijk,abc}(\pi)$.  In a single derivation of this SCFG, each rule will
+be used only once or not be used at all, so $X_{ijk,abc}$ will be either
+0 or 1. Thus the calculation of posterior expectation $x_{ijk,abc}$ of
+$X_{ijk,abc}$ is reduced to the calculation of
+$\Pr\{X_{ijk,abc}=1|S_0\Rightarrow\sigma(T)\}$:
+\begin{eqnarray}\label{equ:c1}
+  x_{ijk,abc}&=&\sum_{\pi}X_{ijk,abc}(\pi)P(\pi|\sigma(T))\nonumber\\
+  &=&\Pr\{S_0\Rightarrow\sigma_1[i,a]\sigma_2\Rightarrow\sigma_1([j,b],[k,c])\sigma_2\Rightarrow\sigma(T)|S_0\Rightarrow\sigma(T)\} \nonumber\\
+  &=&\frac{1}{P(\sigma(T))}\delta_i(j,k)\beta(i,a)\alpha(j,b)p_{ij}(b|a)\alpha(k,c)p_{ik}(c|a)
+\end{eqnarray}
+As $X_{ijk,abc}$ can be either 0 or 1, $X^2_{ijk,abc}=X_{ijk,abc}$
+always stands. This makes it possible to calculate the variance of
+$X_{ijk,abc}$:
+\begin{equation}
+v_{ijk,abc}={\rm Var}X_{ijk,abc}=x_{ijk,abc}[1-x_{ijk,abc}]
+\end{equation}
+
+So far, we have only considered the situation that one leaf has just one
+site.  However, in case of a tree built from a multi-sequence alignment,
+there are usually many of sites. We denote the character string
+corresponding to site $u$ by $\sigma^{(u)}(T)$, and the sub-derivation
+corresponding to site $u$ by $\pi^{(u)}$. We write $\vec{\sigma}(T)$ as
+the character string of all sites. Similarly we have $\vec{\pi}$, the
+entire derivation for all sites. If we assume each site is independent
+of all the others, the expectation of
+$\tilde{X}_{ijk,abc}(\vec{\pi})=\sum_{\vec{\pi}}X^{(u)}_{ijk,abc}(\pi^{(u)})$
+is
+\begin{eqnarray}\label{equ:cijk-all}
+  \tilde{x}_{ijk,abc}&=&\sum_{\vec{\pi}}\tilde{X}_{ijk,abc}(\vec{\pi})P(\vec{\pi}|\vec{\sigma}(T))\nonumber\\
+  &=&\sum_{\vec{\pi}}\tilde{X}_{ijk,abc}(\vec{\pi})\prod_u P(\pi^{(u)}|\sigma^{(u)}(T))\nonumber\\
+  &=&\sum_u\sum_{\pi^{(u)}}X^{(u)}_{ijk,abc}(\pi^{(u)})P(\pi^{(u)}|\sigma^{(u)}(T))\nonumber\\
+  &=&\sum_u x^{(u)}_{ijk,abc}
+\end{eqnarray}
+where $x^{(u)}_{ijk,abc}$ is calculated by Equation~\ref{equ:c1}. In
+addition, using the site independence again, we will get the variance in
+case of multiple sites:
+\begin{equation}\label{equ:cijk-var-all}
+  \tilde{v}_{ijk,abc}={\rm Var}\tilde{X}_{ijk,abc} = \sum_u x^{(u)}_{ijk,abc}\Big[1-x^{(u)}_{ijk,abc}\Big]
+\end{equation}
+Note that when the number of sites is sufficiently large, the posterior
+distribution of $\tilde{X}_{ijk,abc}$ can be approximated by a normal
+distribution $N(\tilde{x}_{ijk,abc}, \tilde{v}_{ijk,abc})$.
+
+We next introduce the marginal expectation $\tilde{x}_{ij,ab}$,
+$\tilde{x}_{i,a}$ and $\tilde{x}_{ijk}$ for further use:
+\begin{equation}
+  \tilde{x}_{ij,ab}=\left\{\begin{array}{ll}
+      \sum_{k,c}\tilde{x}_{ijk,abc} & \mbox{if $j$ is the left child}\\
+      \sum_{k,c}\tilde{x}_{ikj,azy} & \mbox{if $j$ is the right child}\\
+\end{array}\right.
+\end{equation}
+\begin{equation}
+  \tilde{x}_{i,a}=\sum_{j,b}\tilde{x}_{ij,ab}
+\end{equation}
+\begin{equation}
+  \tilde{x}_{ijk}=\sum_{a,b,c}\tilde{x}_{ijk,abc}
+\end{equation}
+\begin{equation}
+  \tilde x_{i}=\sum_{j,k}\tilde{x}_{ijk}=\sum_v\tilde{x}_{i,a}
+\end{equation}
+Note that $\tilde{x}_{i,a}$ is the posterior expectation of
+$\tilde{X}_{i,a}$, the number of of times when a rule $[i,a]$ is
+used. Applying Equation~\ref{equ:in}, we have:
+\begin{equation}
+\tilde{x}_{i,a}=\sum_{j,k,b,c}x_{ijk,abc}=\sum_u\frac{\alpha(i,a)\beta(i,a)}{P(\sigma(T))}
+\end{equation}
+
+
+\subsection{Parameter estimation by expectation maximization}
+The calculation of the posterior expectation of $\tilde{X}_{ijk,abc}$
+paves the way for the application of the EM
+algorithm~\citep{em-dempster77} to estimate the SCFG parameters.  Based
+on a known set of parameters $\theta^t$, the EM algorithm estimate a new
+set of parameters $\theta$ which will increase
+$P(\sigma(T)|\theta)$. This process is usually iterated until a local
+maximum is reached (in some case this can be shown to be global).
+Throughout this section, notations like $\tilde{x}^t_i(v)$ indicates
+that $\tilde{x}^t_{i,a}$ is calculated with $\theta^t$, while
+$\tilde{x}_{i,a}$ with $\theta$.
+
+Given a derivation $\vec{\pi}$, we know that
+\begin{equation}
+  P(\vec{\sigma}(T),\vec{\pi}|\theta)=\prod_{i,\delta_i(j,k)=1}\prod_{a,b,c}\Big[p_{ij}(b|a)p_{ik}(c|a)
+  \delta_i(j,k)\Big]^{\tilde{X}_{ijk,abc}(\vec{\pi})}
+  \prod_u q(d)^{\tilde{X}_{n,d}(\vec{\pi})}
+\end{equation}
+Then the $Q$-function in the EM iteration is:
+\begin{eqnarray}\label{equ:em-q}
+  Q(\theta|\theta^t)&=&\sum_{\vec{\pi}}P(\vec{\pi}|\vec{\sigma}(T),\theta^t)\log P(\vec{\sigma}(T),\vec{\pi}|\theta)\nonumber\\
+  &=&\sum_{\vec{\pi}}P(\vec{\pi}|\vec{\sigma}(T),\theta^t)\Bigg\{\sum_{i,j,k}\sum_{a,b,c}\tilde{X}_{ijk,abc}(\vec{\pi})\Big[\log p_{ij}(b|a)+\log p_{ik}(c|a)\nonumber\\
+  &&+\log\delta_i(j,k)\Big]+\sum_d \tilde{X}_{n,d}(\vec{\pi})\log q(d)\nonumber\Bigg\}\\
+  &=&\sum_{i,j}\sum_{a,b}\tilde{x}^t_{ij,ab}\log p_{ij}(b|a)+\sum_{i,j,k}\tilde{x}_{ijk}\log\delta_i(j,k)
+  +\sum_d \tilde{x}^t_{n,d}\log q(d)
+\end{eqnarray}
+Based on the theory of relative entropy~\citep{durbin98}, we know that
+$Q(\theta|\theta^t)$ is maximized when $q(d)=\hat{q}(d)$,
+$p_{ij}(b|a)=\hat{p}_{ij}(b|a)$ and $\delta_i(j,k)=\hat{\delta}_i(j,k)$,
+where:
+\begin{eqnarray}
+\hat{p}_{ij}(b|a)&=&\frac{\tilde{x}^t_{ij,ab}}{\tilde{x}^t_{i,a}}\\
+\hat{\delta}_i(j,k)&=&\frac{\tilde{x}^t_{ijk}}{\tilde{x}^t_i}\\
+\hat{q}(d)&=&\frac{\tilde{x}^t_{n,d}}{\tilde{x}^t_n}
+\end{eqnarray}
+Iterating the calculation of $q(d)$, $\delta_i(j,k)$ and $p_{ik}$ will
+give the EM estimation of all the parameters in the SCFG model.  We may
+also use a symmetric substitution matrix, or use a unique matrix across
+all the branches. The iteration equations in those cases can also be
+analytically deduced in a similar way.
+
+\subsection{The CYK algorithm}
+For the sake of theoretical completeness, we present the CYK algorithm
+as the last one.  The CYK algorithm finds the most probable derivation
+given a string of terminal symbols.  Define $\gamma(i,a)$ as:
+\begin{equation}
+  \gamma(i,a)=\Pr\{\mbox{most probable procedure to generate $\sigma(T_i)$ from $(i,a)$}\}
+\end{equation}
+Then $\gamma(i,a)$ can be calculated by a straightforward iteration:
+\begin{eqnarray}
+  \gamma(i,a)&=&\max_{j,k,b,c}\Big\{\gamma(j,b)\gamma(k,c)\Pr\{[i,a]\rightarrow([j,b],[k,c])\}\Big\}\nonumber\\
+  &=&\max_{j,k,b,c}\Big\{\delta_i(j,k)\gamma(j,b)\gamma(k,c)p_{ij}(b|a)p_{ik}(c|a)\delta_i(j,k)\Big\}
+\end{eqnarray}
+
+It is worth noting that the CYK algorithm is reduced to the weighted
+parsimony if we use a unique substitution matrix across all the
+branches. The weight of a pair of characters $(a,b)$ is `$-\log
+p(b|a)$'. This finding agrees with the probabilistic interpretion of
+parsimony~\citep{felsenstein81b}.
+
+Given a tree, the CYK algorithm works in a bottom-up way. However, in
+our case, we can also apply it in a top-down way without any tree. This
+will give us the most probable tree among all trees that can be
+generated from the SCFG. We call the top-down CYK as the tree merge
+algorithm.
+
+\subsection{The tree merge algorithm}
+
+\section{Discussions}
+
+\subsection{Time complexity}
+The time complexity of constructing $\mathcal{U}(\mathcal{T})$ is
+$O(|\mathcal{T}|\cdot|V|^2)$.  This includes traversing all the nodes
+and set comparisons with hash. Parsing one tree with inside or outside
+algorithm can be done in $O(|\mathcal{U}|\cdot|\Sigma|^2)$. This is true
+because for one tree $\sum_{j,k}$ in Equation~\ref{equ:in} and
+\ref{equ:out} are not carried out. In the next step, directly
+calculating all $x_{ijk,abc}$ needs $O(|\mathcal{U}|\cdot|\Sigma|^3)$.
+However, if we notice that only $x_{ij,ab}$ and $x_{ijk}$ are
+practically useful, we can achieve this step in
+$O(|\mathcal{U}|\cdot|\Sigma|^2)$, saving a $|\Sigma|$.  Usually we are
+dealing with $L$ sites. The inside-outside algorithm should then be
+repeated for $L$ times.  As a consequence, up to the calculation of
+posterior expectation, the time complexity is
+$O(|\mathcal{T}|\cdot|V|^2+L|\mathcal{U}|\cdot|\Sigma|^2)$ in
+total. When we use EM, the number of iterations should be multiplied to
+the second term.
+
+
+In this paper, we present a stochastic context-free grammar that is
+compatible with both maximum likelihood and maximum parsimony
+methods. As an extension to the two classic methods, this SCFG also
+gives the posterior distribution of ancestral state with
+Equation~\ref{equ:civ}, and the posterior expectation and variance of
+number of substitutions with Equation~\ref{equ:cijk-all} and
+\ref{equ:cijk-var-all}. It shows that these results can be calculated
+directly without complex simulation processes.
+
+This SCFG also reveals the possibility for parameter estimation with the
+EM algorithm.  Although for a common parameter estimation problem we can
+hardly get analytical solution from Equation~\ref{equ:em-q}, this
+equation does show another promissing aspect: branch-specific parameters
+may be separated in optimization. As a matter of fact, the first sum in
+Equation~\ref{equ:em-q} is calculated over all branches. If each
+$p_{ij}$ is only determined by branch-specific parameters, such as
+branch lengths, the global optimization of $Q(\theta|\theta^t)$ can be
+reduced to a series of sub-optimizations at each branch. This will
+effectively avoid high-dimension multi-variable optimization which
+usually consumes most of CPU time in ML estimation. Classic ML methods
+attempt to reduce the computaional burden by using less linage specific
+parameters, while SCFG-EM algorithm may be more efficient if all the
+parameters are linage specific.
+
+Context-free grammar has a natrual connection with a tree topology. In
+this paper, we only show an SCFG that generates the string of symbols of
+leaves, but in general, SCFG can be used to generate a string in Newick
+format, and thus describes the full topology of a tree.  We also know
+that SCFG can model macro-gene evolution and mimic the majority rule
+consensus tree algorithm. Detailed discussion of these applications may
+be beyond the scope of this paper.
+
+\bibliography{ref}
+
+\end{document}

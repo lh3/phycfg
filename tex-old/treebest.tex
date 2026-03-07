@@ -1,0 +1,306 @@
+\newif\ifPDF
+\ifx\pdfoutput\undefined\PDFfalse
+\else\ifnum\pdfoutput > 0\PDFtrue
+	\else\PDFfalse
+	\fi
+\fi
+
+\ifPDF
+	\documentclass[pdftex,10pt]{article}
+	\RequirePackage[hyperindex,colorlinks,plainpages=false]{hyperref}
+	\hypersetup{pdfauthor={Heng Li},linkcolor=blue,citecolor=blue,urlcolor=blue}
+	\usepackage{graphicx}
+	\DeclareGraphicsRule{*}{mps}{*}{}
+\else
+	\documentclass[10pt]{article}
+	\usepackage{graphicx}
+\fi
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\usepackage{natbib}
+\bibliographystyle{apalike}
+
+\usepackage{caption}
+\renewcommand{\captionfont}{\fontsize{9pt}{11pt}\selectfont}
+\newcommand{\lhspace}{\hspace{20pt}}
+
+\addtolength{\textwidth}{3cm}
+\addtolength{\hoffset}{-1.5cm}
+\addtolength{\textheight}{4cm}
+\addtolength{\voffset}{-2cm}
+
+\title{TreeBeST}
+\author{Heng Li and Richard Durbin}
+
+\makeindex
+
+\begin{document}
+
+\section{Methods}
+
+\subsection{Building gene tree with species-aware maximum-likelihood method}
+
+\subsubsection{Construction of spec-SCFG}
+
+Let $S$ be a binary rooted species tree, $G$ a binary rooted gene tree
+with $n$ leaves and $X$ is the multiple alignment underlying
+$G$. Assuming $X$ and $S$ independently influence a gene tree, we have
+$P(G|S,X)=P(G|S)P(G|X)$. While probability $P(G|X)$ can be calculated
+with Felsenstein's pruning algorithm, we will show in this section how
+to approximate $P(G|S)$ with the help of the SCFG theory.
+
+An SCFG generates a string instead of a tree. To calculate $P(G|S)$ we
+need to write $G$ as a string. Given a gene tree $G$, let $x_G$ is
+the New Hampshire string with a leaf of species $s$ written as
+$g_s$. For example, for a gene tree $G$={\tt
+  (gene1\_mouse,(gene2\_mouse,gene2\_rat)))}, a possible $x_G$ is
+$(g_{mouse},(g_{mouse},g_{rat}))$. As swapping the branch order of an
+internal node does not change the topology but may lead to a different
+New Hampshire string, multiple $x_G$ may correspond to the same
+topology. At the same time, not every swap of internal branch order will
+change $x_G$. This is because the gene name has been omitted in
+writting $x_G$, which brings additional symmetry. Let $m$ be the
+number of swaps that do not change $x_G$. Then we have
+$P(G|S)=2^{n-m-1}P(x_G|S)$. Probability $P(x_G|S)$ can be
+calculated in the SCFG framework.
+
+The SCFG can be constructed as follows. The non-terminal set is
+$\{s|\mbox{$s$ is a node of $S$}\}$ The terminal set is
+$\Sigma=\{g_s|\mbox{$s$ is a terminal node of $S$}\} \cup
+\{\mbox{`(',`,',`)'}\}$ where $g_s$ represents a present gene of species
+$s$. The rules are given in Table~\ref{tab:scfgrule}.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{l|lll}
+\hline
+Type & Rule & Probability & Meaning \\
+\hline
+$s$ is an  & $s\to(s_1,s_2)$ & $(1-p)(1-q)/2$ & internal speciation \\
+internal   & $s\to(s_2,s_1)$ & $(1-p)(1-q)/2$ & internal speciation \\
+node       & $s\to(s,s)$ & $p$ & duplication \\
+           & $s\to s_1$ & $q(1-p)/2$ & loss \\
+           & $s\to s_2$ & $q(1-p)/2$ & loss \\
+\hline
+$s$ is an  & $s\to g_s$ & $1-p$ & external speciation \\
+external node & $s\to(s,s)$ & $p$ & duplication \\
+\hline
+\end{tabular}
+\caption{Rules of species-SCFG. State $s$ represents the speciation
+  state of a node of species tree $S$, $s_1$ and $s_2$ are the children
+  of $s$ and $g_s$ is a gene of species $s$.}\label{tab:scfgrule}
+\end{center}
+\end{table}
+
+\subsubsection{Probability of a gene tree}
+
+Suppose we have a derivation consisting of $n_d$ duplication rules and
+$n_l$ speciation rules. We can calculate this probability:
+\begin{equation*}
+  P(x_G,n,n_d,n_l|S)=\frac{p^{n_d}q^{n_l}}{2^{n-n_d+n_l-1}}(1-p)^{2n-n_d+n_l-1}(1-q)^{n-n_d-1}
+\end{equation*}
+and therefore:
+\begin{equation}\label{equ:p-pi1}
+  P(G,n,n_d,n_l|S)=2^{n_d-n_l-m}p^{n_d}q^{n_l}(1-p)^{2n-n_d+n_l-1}(1-q)^{n-n_d-1}
+\end{equation}
+
+Probability $P(x_G|S)$ can be calculated with the inside
+algorithm. Given a node $g$ of $G$, let $x_g$ be the substring for the
+subtree rooted at $g$, and $\alpha(x_g,s)$ be the probability that $x_g$
+is generated from state $s$. If $g$ is a leaf node:
+\begin{equation*}
+  \alpha(x_g,s)=\left\{\begin{array}{ll} 1-p & \mbox{if $s$ is external and $g$ represents a gene of $s$} \\
+    0 & \mbox{otherwise}\end{array}
+  \right.
+\end{equation*}
+If $g$ is internal and its children are $g_1$ and $g_2$, $x_g$ can be
+written as $x_g=(x_{g_1},x_{g_2})$. If $s$ is external:
+\begin{equation*}
+  \alpha(x_g,s)=\alpha((x_{g_1},x_{g_2}),s)=p\cdot\alpha(x_{g_1},s)\alpha(x_{g_2},s)
+\end{equation*}
+If both $s$ and $g$ are internal:
+\begin{eqnarray*}
+  \alpha(x_g,s)&=&p\cdot\alpha(x_{g_1},s)\alpha(x_{g_2},s)
+  +\frac{q(1-p)}{2}\big[\alpha(x_g,s_1)+\alpha(x_g,s_2)\big]\\
+  &&+\frac{(1-p)(1-q)}{2}\big[\alpha(x_{g_1},s_1)\alpha(x_{g_2},s_2)
+  +\alpha(x_{g_1},s_2)\alpha(x_{g_2},s_1)\big]
+\end{eqnarray*}
+where $s_1$ and $s_2$ are the children of $s$. With the above three
+equations we can calculate all $\alpha(x_g,s)$ and the probbility
+$P(G|S)$ is:
+\begin{equation}\label{equ:p-gs}
+  P(G|S)=2^{n-m-1}P(x_G|S)=2^{n-m-1}\alpha(x_G,{\rm root}(S))
+\end{equation}
+
+\subsubsection{Practical implementation}
+
+Although it is possible to calculate $P(G|S)$ as is showed in
+Equation~\ref{equ:p-gs}, we did not implement this algorithm. First, in
+real cases we frequently have multifurcated species tree due to lack of
+evidence or to the short speciation time, but the SCFG described above
+can only be appied to a binary species tree. Extention to multifurcated
+species trees is hampered by the computational complexity when we intend
+to traverse each possible binary topology at a multifurcated
+node. Second, the inside algorithm is an $O(Mn)$ algorithm, where $M$ is
+the size of the species tree and $n$ the size of the gene tree. When $M$
+and $n$ are large, it is slower than Felsenstein's linear-time algorithm
+for calculating $P(G|X)$. To avoid the complication of multifurcated
+species tree and to achieve fast tree building, we decide to use an
+approximate Equation~\ref{equ:p-pi1} to reflect the contribution of
+species evolution.
+
+In implementation, we use the following formula:
+\begin{eqnarray*}
+  P(G|S)&\approx&P(G,n,n^*_d,n^*_{l_s},n^*_{l_d}|S)\\
+  &=&2^{n-m-1}P(G,n^*,n^*_d,n^*_{l_s},n^*_{l_d}|S)\\
+  &=&2^{n^*_d-n^*_{l_s}-n^*_{l_d}-m}p^{n^*_d}q_s^{n^*_{l_s}}q_d^{n^*_{l_d}}
+  (1-p)^{2n-n^*_d+n^*_{l_s}+n^*_{l_d}-1}(1-q_s)^{n-3n^*_d+n^*_{l_d}-1}(1-q_d)^{2n^*_d-n^*_{l_d}}\\
+  &\approx&2^{n^*_d-n^*_{l_s}-n^*_{l_d}}p^{n^*_d}q_s^{n^*_{l_s}}q_d^{n^*_{l_d}}
+  (1-p)^{2n-n^*_d+n^*_{l_s}+n^*_{l_d}-1}(1-q_s)^{n-3n^*_d+n^*_{l_d}-1}(1-q_d)^{2n^*_d-n^*_{l_d}}
+\end{eqnarray*}
+where $q_s$ is the probability of gene loss following a speciation and
+$q_d$ the probability following a duplication. Number $n^*_d$ is the
+minimum number of duplications, and $n^*_{l_s}$ and $n^*_{l_d}$ are the
+minimum number of gene losses following a speciation or a duplication,
+respectively. These numbers can be inferred from parsimonious tree
+reconciliation. Again, $m$ is the number of New Hampshire string $x_G$
+that correponds to $G$, with $0\leq m\leq n_d^*$. Calculating $m$ can be
+done in $O(n^3)$ in the worst cases. It is also ommitted to achieve
+efficiency.
+
+The tree reconciliation algorithm is similar to (Zmasek and Eddy, 2001)
+but with the extention to infer from a multifurcated species tree. The
+algorithm is further improved to do duplication/loss inference and gene
+tree rooting in $O(Mn)$ time, faster than $O(M^2n)$ of the original
+implementation. Although the tree reconciliation algorithm has the same
+time complexity as the inside algorithm, the former is faster due to
+smaller constant in practice.
+
+\subsection{Tree merge algorithm}
+
+\subsubsection{Tree merge problem}
+
+Let $V$ be a set of leaves, $\mathcal{G}=\{G_1,G_2,\ldots,G_N\}$ be a
+set of {\it binary rooted} gene trees whose leaf set is $V$. We consider
+two internal nodes are the same if and only if the sets of leaves
+descending from the two nodes are identical. Then we can label all the
+nodes in these trees as $\mathcal{U}(\mathcal{G})=\{1,2,\ldots,n\}$ and
+define $\omega_i\subset V$ as the set of leaves that descend from node
+$i$. For convenience, the root node, which will appear in each tree of
+$\mathcal{G}$, is always labeled as $n$. We use $U(G)$ to denote the
+node set of tree $G$, and therefore
+$\mathcal{U}(\mathcal{G})=\bigcup_{G\in\mathcal{G}} U(G)$. We further
+define:
+\begin{equation*}
+  \mathcal{U}_i(\mathcal{G})=\{k\in\mathcal{U}(\mathcal{G}):\omega_k\subset\omega_i\}
+\end{equation*}
+as the node set that is completely contained in $i$ and define:
+\begin{equation*}
+  \Omega_i(\mathcal{G})=\{G:\mbox{$G$ is a binary rooted tree with leaf set $\omega_i$ and $U(G)\subset\mathcal{U}_i(\mathcal{G})$}\}
+\end{equation*}
+Set $\Omega_n(\mathcal{G})$ consists of all possible topologies that are
+consistent with $\mathcal{U}(\mathcal{G})$. It can be considered as the
+tree space spanned by $\{G_1,\ldots,G_N\}$.  Obviously, all $G_i$,
+$i\in[1,n]$, belong to $\Omega_n(\mathcal{G})$.
+
+To describe the topologies in $\mathcal{G}$, we introduce an indicator
+function $\delta_i(j,k)$ with $1\leq i,j,k\leq n$. The value of this
+function equals to one if and only if: i) node $j$ and $k$ are $i$'s
+children in a certain tree $G\in\mathcal{G}$ and ii) $j<k$; otherwise
+$\delta_i(j,k)=0$. The second condition $j<k$ creates an ordering of the
+children.
+
+If we define a weight function $F(G)$ given a tree $G$, the general tree
+merge problem is to find a tree $G^*\in\Omega_n(\mathcal{G})$ that
+minimizes $F(G^*)$. For a general weight function, we have to traverse
+all possible $G$ in $\Omega_n(\mathcal{G})$. This exhaustive search may
+be formidable if the tree space is huge. However, finding the optimal
+tree $G^*$ can be achieved in $O(N\cdot|V|^2)$ time if $F(G)$ can be
+expressed as an additive sum over internal nodes:
+\begin{equation}\label{equ:F}
+  F(G)=\sum_{\begin{subarray}{1}l,j,k\in U(G)\\\delta_l(j,k)=1\end{subarray}}f(j,k)
+\end{equation}
+As nodes that cover the same leaf set have the same label, function
+$f(j,k)$ is actually defined on two sets of leaves $\omega_i$ and
+$\omega_j$, and independent of the topologies in both sets. This
+is a strong requirement and we will come back to this point later.
+
+\subsubsection{Tree merge algorithm}
+
+For all leaf nodes, define $h^*(i)=0$; for an internal node $i$:
+\begin{equation*}
+  h^*(i)=\min_{G\in\Omega_i(\mathcal{G})}F(G)
+  =\min_{G\in\Omega_i(\mathcal{G})}\sum_{\begin{subarray}{1}l,j,k\in U(G)\\\delta_l(j,k)=1\end{subarray}}f(j,k)
+\end{equation*}
+which equals to the weight of the best subtree up to node $i$. Function
+$h^*(i)$ has the following recursive form:
+\begin{equation}
+  h^*(i)=\min_{\delta_i(j,k)=1}\big\{h^*(j)+f(j,k)+h^*(k)\big\}
+\end{equation}
+The calculation of $h^*(n)$ fulfills the procedure to find
+the optimal tree $G^*$ in $\Omega_n(\mathcal{G})$. A more detailed
+algorithm is given in Table~\ref{tab:merge}.
+
+\begin{table}[!hbp]
+\begin{center}
+\begin{tabular}{|l|}
+\hline
+{\bf Function:}\\
+\lhspace{\sc TreeMerge}$(G_1,G_2,\ldots,G_N)$\\
+{\bf Input:} \\
+\lhspace$N$ gene trees $G_1,G_2,\ldots,G_N$ which have the same leaf set; \\
+{\bf Output:} \\
+\lhspace $U(G^*)$: the node sets of the optimal tree $G^*$\\
+{\bf Procedures:} \\
+\lhspace$selected\gets\mbox{empty array}$\\
+\lhspace{\sc OptimizeF}$(i)$ \\
+\lhspace\lhspace{\bf if} $h^*(i)$ has been calculated {\bf then} \\
+\lhspace\lhspace\lhspace{\bf return} $h^*(i)$ \\
+\lhspace\lhspace$min\leftarrow\infty$ \\
+\lhspace\lhspace{\bf for} each $(j,k)$ satisfying $\delta_i(j,k)=1$ {\bf do} \\
+\lhspace\lhspace\lhspace$score\gets\mbox{{\sc OptimizeF}}(j)+f(j,k)+\mbox{{\sc OptimizeF}}(k)$\\
+\lhspace\lhspace\lhspace{\bf if} $min>score$ {\bf then}\\
+\lhspace\lhspace\lhspace\lhspace$min\gets score$\\
+\lhspace\lhspace\lhspace\lhspace$minpair\gets (j,k)$\\
+\lhspace\lhspace$h^*(i)\gets min$ \\
+\lhspace\lhspace$selected[i]\gets minpair$ \\
+\lhspace\lhspace{\bf return} $h^*(i)$ \\
+\\
+\lhspace{\sc GetTreeNodes}$(i)$ \\
+\lhspace\lhspace{\bf if} $i$ is a leaf {\bf then}\\
+\lhspace\lhspace\lhspace{\bf return} $\{i\}$\\
+\lhspace\lhspace$(j,k)\gets selected[i]$\\
+\lhspace\lhspace{\bf return} $\mbox{\sc GetTreeNodes}(j)\cup\{i\}\cup\mbox{\sc GetTreeNodes}(k)$\\
+\\
+\lhspace{\sc TreeMerge}$(G_1,G_2,\ldots,G_N)$\\
+\lhspace\lhspace Calculate $\mathcal{U}(\mathcal{G})$ and all $\delta_i(j,k)$\\
+\lhspace\lhspace{\bf for} each $i$ is a leaf node {\bf do}\\
+\lhspace\lhspace\lhspace$h^*(i)\gets 0$\\
+\lhspace\lhspace{\sc OptimizeF}$(n)$\\
+\lhspace\lhspace{\bf return} {\sc GetTreeNodes}$(n)$\\
+\hline
+\end{tabular}
+\caption[Tree merge algorithm]{Tree merge algorithm. Function {\sc
+    TreeMerge}() gives the node set of the optimal tree
+  $G^*\in\Omega_n(\mathcal{G})$. The topology of $G^*$ could be
+  recovered from this set.}~\label{tab:merge}
+\end{center}
+\end{table}
+
+\subsubsection{Defining weight function}
+
+As is described above, weight function $f(j,k)$ is defined on $\omega_j$
+and $\omega_k$ only. The likelihood function used in Felsenstein's
+algorithm and the parsimonious function do not satisfy this
+requirement. For $\delta_i(j,k)=1$, a possible form of $f(j,k)$ is:
+\begin{equation*}
+  f(j,k)=c_df_d(j,k) + c_lf_l(j,k) - c_bf_b(j,k)
+\end{equation*}
+where $f_d(j,k)$ is an indicator function whether $i$ is a duplication;
+$f_l(j,k)$ is the number of losses that happen between $(i,j)$ and
+$(i,k)$; $f_b(j,k)$ is the bootstrap value on the branch between $i$ and
+its parent; $c_d$, $c_l$ and $c_b$ are positive constants.
+
+\end{document}
