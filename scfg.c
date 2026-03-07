@@ -323,51 +323,6 @@ double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_buf_
 	return loglk;
 }
 
-/* Debug/exploratory NNI search. First runs global EM (max_iter rounds) to
- * obtain initial transition matrices p. Then computes eta~ for all three NNI
- * rotations at each MSA column via inside-outside + pc_scfg_eta_nni. Finally
- * calls pc_scfg_em_branch for all eligible nodes and all three rotations,
- * printing per-node NNI log-likelihoods ("NNI\tu\tlk0\tlk1\tlk2"). */
-void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter, int32_t max_iter_br)
-{
-	int32_t m = t->m, k, l, u;
-	double logh, loglk, **eta3;
-	pc_scfg_buf_t *sd;
-	pc_nni_t **nni;
-
-	sd = pc_scfg_buf_new(t->n_node, m);
-	for (k = 0; k < max_iter; ++k) {
-		loglk = pc_scfg_em(t, msa, ct, sd);
-		printf("LK\t%d\t%.6f\n", k, loglk);
-	}
-
-	eta3 = kom_malloc(double*, msa->len);
-	eta3[0] = kom_calloc(double, (size_t)t->n_node * 3 * m * m * msa->len);
-	for (l = 1; l < msa->len; ++l)
-		eta3[l] = eta3[l - 1] + t->n_node * 3 * m * m;
-	for (l = 0, loglk = 0.0, logh = 0.0; l < msa->len; ++l) {
-		loglk += pc_scfg_inside(t, msa, l, sd);
-		pc_scfg_outside(t, sd);
-		pc_scfg_eta3_nni(t, sd, eta3[l]);
-		for (u = 0; u < t->n_node; ++u)
-			logh += log(sd[u].h);
-	}
-	printf("LH\t%.6f\t%.6f\n", loglk, logh);
-
-	nni = kom_calloc(pc_nni_t*, 3 * t->n_node);
-	for (u = 0; u < t->n_node; ++u) {
-		nni[u * 3 + 0] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 0, max_iter_br);
-		nni[u * 3 + 1] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 1, max_iter_br);
-		nni[u * 3 + 2] = pc_scfg_em_branch(t, ct, msa->len, eta3, u, 2, max_iter_br);
-		if (nni[u * 3 + 0] == 0) continue;
-		printf("NNI\t%d\t%.6f\t%.6f\t%.6f\n", u, nni[u * 3 + 0]->loglk, nni[u * 3 + 1]->loglk, nni[u * 3 + 2]->loglk);
-	}
-	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
-	free(nni);
-	free(eta3[0]); free(eta3);
-	free(sd);
-}
-
 /* Apply the best single NNI move. Uses caller-supplied p (already initialized).
  * Computes eta~ for all three rotations at each MSA column, then runs
  * pc_scfg_em_branch for every eligible node. The best (u, rotation) pair is
@@ -451,46 +406,6 @@ void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_
 		pc_nni_t *nni1 = pc_scfg_em_branch(t, ct1, msa->len, eta, u, -1, max_iter_br);
 		diff[u] = nni0 == NULL? 0.0 : nni1->loglk - nni0->loglk;
 		free(nni0); free(nni1);
-	}
-	if (0) { /* debug: posterior joint for node index 1 */
-		int32_t a, b, sid = t->node[1]->seq_id;
-		const double *pu = t->p + (size_t)1 * m2;
-		double *tmp = kom_malloc(double, m2);
-		double *cnt0 = kom_calloc(double, m2);
-		double *cnt1 = kom_calloc(double, m2);
-		for (l = 0; l < msa->len; ++l) {
-			double s = 0.0;
-			uint8_t base = sid >= 0 ? msa->msa[l][sid] : (uint8_t)m;
-			for (a = 0; a < m; ++a)
-				for (b = 0; b < m; ++b)
-					s += (tmp[a*m+b] = pu[a*m+b] * eta[l][(size_t)1 * m2 + a*m+b]);
-			s = 1.0 / s;
-			fprintf(stderr, "JNT\t%d\t%d", l, (int)base);
-			for (a = 0; a < m; ++a) {
-				for (b = 0; b < m; ++b) {
-					fprintf(stderr, "\t%.3f", tmp[a*m+b] * s);
-					if (base < 4) cnt0[a*m+b] += tmp[a*m+b] * s;
-					else cnt1[a*m+b] += tmp[a*m+b] * s;
-				}
-				fprintf(stderr, ";");
-			}
-			fputc('\n', stderr);
-		}
-		fprintf(stderr, "JN0\t*\t*");
-		for (a = 0; a < m; ++a) {
-			for (b = 0; b < m; ++b)
-				fprintf(stderr, "\t%.3f", cnt0[a*m+b]);
-			fprintf(stderr, ";");
-		}
-		fputc('\n', stderr);
-		fprintf(stderr, "JN1\t*\t*");
-		for (a = 0; a < m; ++a) {
-			for (b = 0; b < m; ++b)
-				fprintf(stderr, "\t%.3f", cnt1[a*m+b]);
-			fprintf(stderr, ";");
-		}
-		fputc('\n', stderr);
-		free(tmp);
 	}
 	free(eta[0]); free(eta); free(sd);
 }

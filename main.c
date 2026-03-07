@@ -275,8 +275,6 @@ int main_scfg(int argc, char *argv[])
 			        v->name && v->name[0] ? v->name : ".", diff[i]);
 		}
 		free(diff);
-	} else {
-		pc_scfg_nni_dbg(t, msa, ct, max_iter, max_iter_br);
 	}
 
 	free(sd);

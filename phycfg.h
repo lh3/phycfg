@@ -78,7 +78,6 @@ double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_buf_t *
 double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_buf_t *sd);
 double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
 void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_model_t ct1, int32_t max_iter_br, double *diff);
-void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter, int32_t max_iter_br);
 
 pc_model_t pc_model_from_str(const char *model);
 void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp);
