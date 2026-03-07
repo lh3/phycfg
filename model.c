@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <math.h>
-#include "phycfg.h"
+#include "pcpriv.h"
 #include "kommon.h"
 
 pc_model_t pc_model_from_str(const char *model)

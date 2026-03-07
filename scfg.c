@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "kommon.h"
-#include "phycfg.h"
+#include "pcpriv.h"
 
 pc_scfg_buf_t *pc_scfg_buf_new(int32_t n_node, int32_t m)
 {
