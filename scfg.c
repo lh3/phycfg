@@ -467,5 +467,45 @@ void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct0, 
 		diff[u] = nni0 == NULL? 0.0 : nni1->loglk - nni0->loglk;
 		free(nni0); free(nni1);
 	}
+	if (0) { /* debug: posterior joint for node index 1 */
+		int32_t a, b, sid = t->node[1]->seq_id;
+		const double *pu = t->p + (size_t)1 * m2;
+		double *tmp = kom_malloc(double, m2);
+		double *cnt0 = kom_calloc(double, m2);
+		double *cnt1 = kom_calloc(double, m2);
+		for (l = 0; l < msa->len; ++l) {
+			double s = 0.0;
+			uint8_t base = sid >= 0 ? msa->msa[l][sid] : (uint8_t)m;
+			for (a = 0; a < m; ++a)
+				for (b = 0; b < m; ++b)
+					s += (tmp[a*m+b] = pu[a*m+b] * eta[l][(size_t)1 * m2 + a*m+b]);
+			s = 1.0 / s;
+			fprintf(stderr, "JNT\t%d\t%d", l, (int)base);
+			for (a = 0; a < m; ++a) {
+				for (b = 0; b < m; ++b) {
+					fprintf(stderr, "\t%.3f", tmp[a*m+b] * s);
+					if (base < 4) cnt0[a*m+b] += tmp[a*m+b] * s;
+					else cnt1[a*m+b] += tmp[a*m+b] * s;
+				}
+				fprintf(stderr, ";");
+			}
+			fputc('\n', stderr);
+		}
+		fprintf(stderr, "JN0\t*\t*");
+		for (a = 0; a < m; ++a) {
+			for (b = 0; b < m; ++b)
+				fprintf(stderr, "\t%.3f", cnt0[a*m+b]);
+			fprintf(stderr, ";");
+		}
+		fputc('\n', stderr);
+		fprintf(stderr, "JN1\t*\t*");
+		for (a = 0; a < m; ++a) {
+			for (b = 0; b < m; ++b)
+				fprintf(stderr, "\t%.3f", cnt1[a*m+b]);
+			fprintf(stderr, ";");
+		}
+		fputc('\n', stderr);
+		free(tmp);
+	}
 	free(eta[0]); free(eta); free(sd);
 }
