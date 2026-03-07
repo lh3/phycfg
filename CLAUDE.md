@@ -28,7 +28,7 @@ Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not
 - `view` → `main_view()` at the bottom of `main.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
 - `msaflt` → `main_msaflt()`; reads a gzip'd FASTA MSA, infers residue type, encodes, filters columns, and writes decoded FASTA to stdout; accepts `-m INT` (min non-gap/non-ambiguous residues per column, default 1) and `-1`/`-2`/`-3` to select codon positions
 - `reroot` → `main_reroot()`; reroots a tree and writes Newick to stdout; by default uses global midpoint rooting; with `-l STR` roots at the midpoint of the branch leading to the LCA of the listed leaves
-- `scfg` → `main_scfg()` in `scfg.c`; reads tree and MSA, encodes, matches sequences to leaves; without `-n` runs `pc_scfg_nni_dbg` (debug mode); with `-n INT` runs EM then up to INT rounds of NNI topology search, prints final Newick to stdout; `-m INT` sets EM iterations per round (default 100), `-b INT` sets branch EM iterations (default 50)
+- `scfg` → `main_scfg()` in `scfg.c`; reads tree and MSA, encodes, matches sequences to leaves; with `-n INT` runs EM then up to INT rounds of NNI topology search, prints final Newick to stdout; `-m INT` sets EM iterations per round (default 100), `-b INT` sets branch EM iterations (default 50)
 - `version` → prints `PC_VERSION` from `phycfg.h`
 
 When `kom_verbose >= 3` and the command succeeds, timing/resource info is printed to stderr.
@@ -102,7 +102,6 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o scfg.o`. Linke
   - `pc_scfg_post_cnt(t, msa, sd, cnt)` — E-step over all MSA columns: zeros `cnt[n_node*m*m]`, runs inside/outside per column, accumulates normalized posterior branch counts; returns total log likelihood
   - `pc_scfg_em(t, msa, ct, sd)` — one EM round: calls `pc_scfg_post_cnt` then M-step via `pc_model_matrix` + row-normalise `t->p` in-place; returns total log likelihood
   - `pc_scfg_nni(t, msa, ct, max_iter_br)` — one NNI round: computes η̃ for all rotations, runs `pc_scfg_em_branch` for all nodes, applies the best improving move (if any) and rearranges `t->p` to match the new post-order; returns improvement (0 = no move)
-  - `pc_scfg_nni_dbg(t, msa, ct, max_iter, max_iter_br)` — debug NNI: runs global EM, then computes per-column η̃ via `pc_scfg_eta_nni`, then `pc_scfg_em_branch` for all nodes × 3 rotations; prints `LK`, `LH`, and `NNI\tu\tlk0\tlk1\tlk2` to stdout
 
 ### Third-party headers
 
