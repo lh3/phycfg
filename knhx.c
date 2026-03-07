@@ -35,7 +35,7 @@ static inline char *add_node(const char *s, kn_aux_t *aux, int x)
 	kom_grow(knhx1_t, aux->a, aux->n, aux->max);
 	r = aux->a + (aux->n++);
 	r->n = x; r->parent = -1;
-	for (p = (char*)s, nbeg = p, r->d = -1.0; *p && *p != ',' && *p != ')'; ++p) {
+	for (p = (char*)s, nbeg = p, r->d = -1.0; *p && *p != ',' && *p != ')' && *p != ';'; ++p) {
 		if (*p == '[') {
 			if (nend == 0) nend = p;
 			do { ++p; } while (*p && *p != ']');
@@ -47,7 +47,9 @@ static inline char *add_node(const char *s, kn_aux_t *aux, int x)
 			if (nend == 0) nend = p;
 			r->d = strtod(p + 1, &p);
 			--p;
-		} else if (!isgraph(*p)) if (nend == 0) nend = p;
+		} else if (!isgraph(*p)) {
+			if (nend == 0) nend = p;
+		}
 	}
 	if (nend == 0) nend = p;
 	if (nend != nbeg) {
