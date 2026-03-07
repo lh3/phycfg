@@ -35,7 +35,7 @@ When `kom_verbose >= 3` and the command succeeds, timing/resource info is printe
 
 ### Library (`libphycfg.a`)
 
-Object files archived: `kommon.o knhx.o tree.o io.o msa.o scfg.o`. Linked with `main.o`.
+Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o scfg.o`. Linked with `main.o`.
 
 - **`kommon.c`/`kommon.h`** — general-purpose utilities:
   - Memory macros: `kom_malloc`, `kom_calloc`, `kom_realloc`, `kom_grow` (dynamic array growth with 1.5× expansion)
@@ -82,21 +82,27 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o scfg.o`. Linked with `
   - `pc_msa_t` fields: `len` (alignment length / number of columns), `n_seq`, `rt`, `m` (alphabet size: 4 NT / 20 AA / 256 unknown), `name` (sequence names), `msa` (`uint8_t**`, position-major: `msa[pos][seq]`)
   - Gap/ambiguous constants: `PC_GAP_NT`=5, `PC_GAP_AA`=23 (defined in `phycfg.h`)
 
+- **`model.c`** — substitution model constraints and distance estimation (declared in `phycfg.h`):
+  - `pc_model_t` enum: `PC_MD_ERR`, `PC_MD_NULL` (unconstrained), `PC_MD_REV` (reversible/GTR), `PC_MD_TN93`
+  - `pc_model_from_str(model_str)` — parse model name string to `pc_model_t`; recognises `"null"/"NULL"`, `"rev"/"GTR"/"gtr"`, `"TN93"/"tn93"`; returns `PC_MD_ERR` on unknown input
+  - `pc_model_matrix(cnt, m, md, tmp)` — apply model constraint to raw posterior count matrix `cnt` into `tmp`; `PC_MD_REV` symmetrises; `PC_MD_TN93` symmetrises then pools transversion rates by `π_i·π_j·tv` (nucleotide only, asserts `m==4`); `PC_MD_NULL` copies unchanged
+  - `pc_model_dist_TN93(cnt, &kR, &kY)` — compute TN93 branch length from a 4×4 joint count matrix; writes transition rate ratios κ_R and κ_Y; returns branch length scaled by the expected number of substitutions per site
+  - `pc_model_dist(t, msa, md)` — compute branch lengths for all branches: calls `pc_transmat_init`, allocates `pc_scfg_buf_t`, runs `pc_scfg_post_cnt` to get posterior joint counts, then calls `pc_model_dist_TN93` per non-root branch and stores result in `node->d`; root branch set to 0.0; currently asserts `md == PC_MD_TN93`
+
 - **`scfg.c`** — SCFG algorithms and the `scfg` subcommand (functions declared in `phycfg.h` where externally visible):
-  - `pc_scfg_t` fields: `h` (per-node scaling factor), `*alpha` (α̃), `*alpha2` (α̃'), `*beta` (β̃) — all pointers into a single flat allocation; NOT a flexible-array struct
+  - `pc_scfg_buf_t` fields: `h` (per-node scaling factor), `*alpha` (α̃), `*alpha2` (α̃'), `*beta` (β̃) — all pointers into a single flat allocation; NOT a flexible-array struct
   - `pc_nni_t` fields: `rotation` (0/1/2), `u` (node ftime), `loglk`, `p[]` (flexible m×m transition matrix) — result of `pc_scfg_em_branch`; caller must free
-  - `pc_scfg_new(n_node, m)` — allocates one contiguous block for an array of `n_node` `pc_scfg_t` headers followed by `3*n_node*m` doubles; sets each node's three pointers into the data region
+  - `pc_scfg_buf_new(n_node, m)` — allocates one contiguous block for an array of `n_node` `pc_scfg_buf_t` headers followed by `3*n_node*m` doubles; sets each node's three pointers into the data region
   - `pc_transmat_init(t)` — allocates `t->p` if NULL, then fills `t->p + k*m*m` (m×m, row-major, `p[k*m*m + a*m+b] = P(b|a)`) for each node k; non-root nodes get JC model from `t->node[k]->d` (clamped to ≥1e-3); root node gets flat `1/m` (encodes q(a))
   - `pc_scfg_inside(t, msa, pos, sd)` — inside (Felsenstein) pass for column `pos`; requires binary tree (`assert n_child∈{0,2}`); requires `seq_id≥0` on all leaves; returns `Σ_v log h(v) + log(Σ_a α̃(root,a)·q(a))` = log P(column)
   - `pc_scfg_outside(t, sd)` — outside pass (must follow inside); initializes β̃(root,a) = q(a)/h_root; propagates β̃ downward using α̃' from inside; returns void
   - `pc_scfg_eta(t, sd, eta)` — compute η̃[n_node*m*m] from inside/outside values in `sd`; for non-root u: `η̃(u,b|a) = β̃(par,a)·α̃(u,b)·∏ₖ α̃'(sibₖ,a)`; not defined at root (loop stops before root)
   - `pc_scfg_eta_nni(t, sd, eta)` — compute η̃ for all three NNI rotations; `eta` has shape `(n_node, 3, m, m)`; only written for eligible nodes (internal, non-root); rotation 0 = original `((x,y)u,w)v`, 1 = `((w,y)u,x)v`, 2 = `((x,w)u,y)v`
-  - `pc_scfg_em_branch(t, len, eta, u, rotation, max_itr)` — run EM on the m×m transition matrix of branch `u` (seeded from `t->p + u*m*m`) under a given NNI rotation using precomputed `eta[len][n_node*3*m*m]`; returns allocated `pc_nni_t*` (or NULL for leaves/root); caller must free
+  - `pc_scfg_em_branch(t, ct, len, eta, u, rotation, max_itr)` — run EM on the m×m transition matrix of branch `u` (seeded from `t->p + u*m*m`) under a given NNI rotation using precomputed `eta[len][n_node*3*m*m]`; returns allocated `pc_nni_t*` (or NULL for leaves/root); caller must free
   - `pc_scfg_post_cnt(t, msa, sd, cnt)` — E-step over all MSA columns: zeros `cnt[n_node*m*m]`, runs inside/outside per column, accumulates normalized posterior branch counts; returns total log likelihood
-  - `pc_scfg_em_basic(t, msa, sd)` — one EM round: calls `pc_scfg_post_cnt` then M-step (renormalize each row of `t->p` in-place); returns total log likelihood
-  - `pc_scfg_em_iter(t, msa, max_iter, sd)` — calls `pc_transmat_init(t)` then runs `max_iter` rounds of `pc_scfg_em_basic`; returns final log likelihood
-  - `pc_scfg_nni(t, msa, max_iter_br)` — one NNI round: computes η̃ for all rotations, runs `pc_scfg_em_branch` for all nodes, applies the best improving move (if any) and rearranges `t->p` to match the new post-order; returns improvement (0 = no move)
-  - `pc_scfg_nni_dbg(t, msa, max_iter, max_iter_br)` — debug NNI: runs global EM, then computes per-column η̃ via `pc_scfg_eta_nni`, then `pc_scfg_em_branch` for all nodes × 3 rotations; prints `LK`, `LH`, and `NNI\tu\tlk0\tlk1\tlk2` to stdout
+  - `pc_scfg_em(t, msa, ct, sd)` — one EM round: calls `pc_scfg_post_cnt` then M-step via `pc_model_matrix` + row-normalise `t->p` in-place; returns total log likelihood
+  - `pc_scfg_nni(t, msa, ct, max_iter_br)` — one NNI round: computes η̃ for all rotations, runs `pc_scfg_em_branch` for all nodes, applies the best improving move (if any) and rearranges `t->p` to match the new post-order; returns improvement (0 = no move)
+  - `pc_scfg_nni_dbg(t, msa, ct, max_iter, max_iter_br)` — debug NNI: runs global EM, then computes per-column η̃ via `pc_scfg_eta_nni`, then `pc_scfg_em_branch` for all nodes × 3 rotations; prints `LK`, `LH`, and `NNI\tu\tlk0\tlk1\tlk2` to stdout
 
 ### Third-party headers
 
