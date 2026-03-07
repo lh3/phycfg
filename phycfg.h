@@ -37,7 +37,7 @@ typedef enum { PC_MD_ERR, PC_MD_NULL, PC_MD_REV, PC_MD_TN93 } pc_model_t;
 
 typedef struct {
 	double h, *alpha, *alpha2, *beta; // pointers point to x[]
-} pc_scfg_aux_t;
+} pc_scfg_buf_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,13 +69,13 @@ void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag);
 
 char **pc_list_read(const char *o, int *n_);
 
-pc_scfg_aux_t *pc_scfg_aux_new(int32_t n_node, int32_t m);
+pc_scfg_buf_t *pc_scfg_buf_new(int32_t n_node, int32_t m);
 void pc_transmat_init(pc_tree_t *t);
-double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_scfg_aux_t *sd);
-void pc_scfg_outside(const pc_tree_t *t, pc_scfg_aux_t *sd);
-void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_aux_t *sd, double *eta);
-double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_aux_t *sd, double *cnt);
-double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_aux_t *sd);
+double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_scfg_buf_t *sd);
+void pc_scfg_outside(const pc_tree_t *t, pc_scfg_buf_t *sd);
+void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_buf_t *sd, double *eta);
+double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_buf_t *sd, double *cnt);
+double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_buf_t *sd);
 double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
 void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_model_t ct1, int32_t max_iter_br, double *diff);
 void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter, int32_t max_iter_br);

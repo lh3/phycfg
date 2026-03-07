@@ -88,10 +88,10 @@ void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md)
 {
 	int32_t j, m = t->m;
 	double *cnt, kR, kY;
-	pc_scfg_aux_t *sd;
+	pc_scfg_buf_t *sd;
 	assert(md == PC_MD_TN93);
 	pc_transmat_init(t);
-	sd = pc_scfg_aux_new(t->n_node, m);
+	sd = pc_scfg_buf_new(t->n_node, m);
 	cnt = kom_malloc(double, (size_t)t->n_node * m * m);
 	pc_scfg_post_cnt(t, msa, sd, cnt);
 	for (j = 0; j < t->n_node - 1; ++j)
