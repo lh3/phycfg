@@ -83,6 +83,7 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t m
 pc_model_t pc_model_from_str(const char *model);
 void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp);
 double pc_model_dist_TN93(const double *cnt, double *kR, double *kY);
+void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
 
 #ifdef __cplusplus
 }

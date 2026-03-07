@@ -1,7 +1,9 @@
 #include <string.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <math.h>
 #include "phycfg.h"
+#include "kommon.h"
 
 pc_model_t pc_model_from_str(const char *model)
 {
@@ -49,6 +51,18 @@ static void pc_model_matrix_TN93(const double *cnt, double *out)
 	out[11] = out[14] = pi[2] * pi[3] * tv;
 }
 
+void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp)
+{
+	if (md == PC_MD_REV) {
+		pc_model_symm(cnt, m, tmp);
+	} else if (md == PC_MD_TN93) {
+		assert(m == 4);
+		pc_model_matrix_TN93(cnt, tmp);
+	} else { // PC_MD_NULL or undefined
+		memcpy(tmp, cnt, sizeof(double) * m * m);
+	}
+}
+
 double pc_model_dist_TN93(const double *cnt, double *kR, double *kY)
 {
 	int32_t i;
@@ -70,14 +84,19 @@ double pc_model_dist_TN93(const double *cnt, double *kR, double *kY)
 	return -t * beta_inv;
 }
 
-void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp)
+void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md)
 {
-	if (md == PC_MD_REV) {
-		pc_model_symm(cnt, m, tmp);
-	} else if (md == PC_MD_TN93) {
-		assert(m == 4);
-		pc_model_matrix_TN93(cnt, tmp);
-	} else { // PC_MD_NULL or undefined
-		memcpy(tmp, cnt, sizeof(double) * m * m);
-	}
+	int32_t j, m = t->m;
+	double *cnt, kR, kY;
+	pc_scfg_t *sd;
+	assert(md == PC_MD_TN93);
+	pc_transmat_init(t);
+	sd = pc_scfg_new(t->n_node, m);
+	cnt = kom_malloc(double, (size_t)t->n_node * m * m);
+	pc_scfg_post_cnt(t, msa, sd, cnt);
+	for (j = 0; j < t->n_node - 1; ++j)
+		t->node[j]->d = pc_model_dist_TN93(cnt + (size_t)j * m * m, &kR, &kY);
+	t->node[j]->d = 0.0; // root is always 0
+	free(cnt);
+	free(sd);
 }
