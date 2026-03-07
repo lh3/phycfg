@@ -216,6 +216,7 @@ int main_scfg(int argc, char *argv[])
 	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0;
 	pc_model_t ct = PC_MD_NULL, ct0 = PC_MD_REV;
 	pc_scfg_buf_t *sd;
+	double loglk;
 
 	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
@@ -243,17 +244,17 @@ int main_scfg(int argc, char *argv[])
 	pc_msa_encode(msa, pc_msa_infer_rt(msa));
 	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
 	pc_tree_match_msa(t, msa);
+
 	sd = pc_scfg_buf_new(t->n_node, t->m);
+	pc_transmat_init(t);
+	for (i = 0; i < max_iter; ++i) {
+		loglk = pc_scfg_em(t, msa, ct, sd);
+		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
+	}
 
 	if (nni > 0) {
 		int32_t k, max = 0;
 		char *str = 0;
-		double loglk;
-		pc_transmat_init(t);
-		for (i = 0; i < max_iter; ++i) {
-			loglk = pc_scfg_em(t, msa, ct, sd);
-			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
-		}
 		for (k = 0; k < nni; ++k) {
 			double diff = pc_scfg_nni(t, msa, ct, max_iter_br);
 			if (diff == 0.0) break;
@@ -265,12 +266,7 @@ int main_scfg(int argc, char *argv[])
 		puts(str);
 		free(str);
 	} else if (test_mode) {
-		double loglk, *diff;
-		pc_transmat_init(t);
-		for (i = 0; i < max_iter; ++i) {
-			loglk = pc_scfg_em(t, msa, ct0, sd);
-			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
-		}
+		double *diff;
 		diff = kom_calloc(double, t->n_node);
 		pc_scfg_cmp_ct(t, msa, ct0, ct, max_iter_br, diff);
 		for (i = 0; i < t->n_node; ++i) {

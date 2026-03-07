@@ -336,7 +336,6 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t m
 	pc_nni_t **nni;
 
 	sd = pc_scfg_buf_new(t->n_node, m);
-	pc_transmat_init(t);
 	for (k = 0; k < max_iter; ++k) {
 		loglk = pc_scfg_em(t, msa, ct, sd);
 		printf("LK\t%d\t%.6f\n", k, loglk);
