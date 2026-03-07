@@ -214,7 +214,7 @@ int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
 	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0;
-	pc_constype_t ct = PC_CT_NULL, ct0 = PC_CT_REV;
+	pc_model_t ct = PC_MD_NULL, ct0 = PC_MD_REV;
 	pc_scfg_t *sd;
 
 	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:", 0) >= 0) {

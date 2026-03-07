@@ -193,10 +193,10 @@ void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
 	}
 }
 
-static void pc_scfg_cons(const double *cnt, int32_t m, pc_constype_t ct, double *tmp)
+static void pc_scfg_cons(const double *cnt, int32_t m, pc_model_t ct, double *tmp)
 {
 	int32_t a, b;
-	if (ct == PC_CT_NULL) {
+	if (ct == PC_MD_NULL) {
 		memcpy(tmp, cnt, sizeof(double) * m * m);
 	} else { // so far all the other models are reversible
 		for (a = 0; a < m; ++a) { // tmp is symmetric
@@ -204,9 +204,9 @@ static void pc_scfg_cons(const double *cnt, int32_t m, pc_constype_t ct, double 
 			for (b = 0; b < a; ++b)
 				tmp[a * m + b] = tmp[b * m + a] = .5 * (cnt[a * m + b] + cnt[b * m + a]);
 		}
-		if (ct == PC_CT_REV) {
+		if (ct == PC_MD_REV) {
 			return;
-		} else if (ct == PC_CT_HKY && m == 4) { // HKY (nucleotide only)
+		} else if (ct == PC_MD_HKY && m == 4) { // HKY (nucleotide only)
 			double tv, pi[4], tot = 0.0;
 			for (a = 0; a < m; ++a) {
 				for (b = 0, pi[a] = 0.0; b < m; ++b)
@@ -235,7 +235,7 @@ static void pc_scfg_c2p(int32_t m, const double *c, double *p)
 	}
 }
 
-static void pc_scfg_cnt2p(pc_tree_t *t, const double *cnt, pc_constype_t ct)
+static void pc_scfg_cnt2p(pc_tree_t *t, const double *cnt, pc_model_t ct)
 {
 	int32_t u, m = t->m;
 	double *tmp = kom_calloc(double, m * m);
@@ -255,7 +255,7 @@ static void pc_scfg_cnt2p(pc_tree_t *t, const double *cnt, pc_constype_t ct)
  * and the posterior count is the normalized product p(b|a)*eta~(u,rotation,a,b).
  * Returns an allocated pc_nni_t with the optimized p[m*m] and loglk, or NULL
  * if u is a leaf or the root. Caller must free the result. */
-pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_constype_t ct, int32_t len, double **eta3, int32_t u, int32_t rotation, int32_t max_itr)
+pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_model_t ct, int32_t len, double **eta3, int32_t u, int32_t rotation, int32_t max_itr)
 {
 	int32_t i, l, a, b, off, m = t->m, is3 = (rotation >= 0 && rotation < 3);
 	pc_nni_t *q;
@@ -343,7 +343,7 @@ double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_t *sd, 
 	return loglk;
 }
 
-double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, pc_scfg_t *sd)
+double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_t *sd)
 {
 	int32_t m = t->m;
 	double *cnt = kom_malloc(double, (size_t)t->n_node * m * m);
@@ -358,7 +358,7 @@ double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, pc_scfg_t
  * rotations at each MSA column via inside-outside + pc_scfg_eta_nni. Finally
  * calls pc_scfg_em_branch for all eligible nodes and all three rotations,
  * printing per-node NNI log-likelihoods ("NNI\tu\tlk0\tlk1\tlk2"). */
-void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t max_iter, int32_t max_iter_br)
+void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter, int32_t max_iter_br)
 {
 	int32_t m = t->m, k, l, u;
 	double logh, loglk, **eta3;
@@ -406,7 +406,7 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_
  * improvement is found, applies pc_tree_rotate and rearranges p[] to match the
  * new post-order, replacing p[u] with the optimized branch matrix.
  * Returns the improvement (>=0); 0 means no move. */
-double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t max_iter_br)
+double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br)
 {
 	int32_t l, u, r, m = t->m, m2 = m * m, best_u = -1, best_r = 0;
 	double **eta3, best_delta = 0.0;
@@ -461,15 +461,15 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t 
 	return best_delta;
 }
 
-pc_constype_t pc_scfg_str2cons(const char *model)
+pc_model_t pc_scfg_str2cons(const char *model)
 {
-	if (strcmp(model, "null") == 0 || strcmp(model, "NULL") == 0) return PC_CT_NULL;
-	if (strcmp(model, "rev") == 0 || strcmp(model, "GTR") == 0 || strcmp(model, "gtr") == 0) return PC_CT_REV;
-	if (strcmp(model, "HKY") == 0 || strcmp(model, "hky") == 0) return PC_CT_HKY;
-	return PC_CT_ERR;
+	if (strcmp(model, "null") == 0 || strcmp(model, "NULL") == 0) return PC_MD_NULL;
+	if (strcmp(model, "rev") == 0 || strcmp(model, "GTR") == 0 || strcmp(model, "gtr") == 0) return PC_MD_REV;
+	if (strcmp(model, "HKY") == 0 || strcmp(model, "hky") == 0) return PC_MD_HKY;
+	return PC_MD_ERR;
 }
 
-void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct0, pc_constype_t ct1, int32_t max_iter_br, double *diff)
+void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_model_t ct1, int32_t max_iter_br, double *diff)
 {
 	int32_t l, u, m = t->m, m2 = m * m;
 	double **eta;
