@@ -213,17 +213,19 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0, skip_dist = 0, max_str = 0;
 	pc_model_t ct = PC_MD_NULL, ct0 = PC_MD_REV;
 	pc_scfg_buf_t *sd;
 	double loglk;
+	char *str = 0;
 
-	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:D", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'x') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') ct = pc_model_from_str(o.arg);
 		else if (o.opt == 't') ct0 = pc_model_from_str(o.arg), test_mode = 1;
+		else if (o.opt == 'D') skip_dist = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -233,6 +235,7 @@ int main_scfg(int argc, char *argv[])
 		fprintf(stderr, "  -x INT    EM iterations per round [%d]\n", max_iter);
 		fprintf(stderr, "  -b INT    EM iterations per branch [%d]\n", max_iter_br);
 		fprintf(stderr, "  -t STR    test model [rev]\n");
+		fprintf(stderr, "  -D        don't recalculate branch lengths for DNA sequences\n");
 		return 1;
 	}
 
@@ -253,8 +256,7 @@ int main_scfg(int argc, char *argv[])
 	}
 
 	if (nni > 0) {
-		int32_t k, max = 0;
-		char *str = 0;
+		int32_t k;
 		for (k = 0; k < nni; ++k) {
 			double diff = pc_scfg_nni(t, msa, ct, max_iter_br);
 			if (diff == 0.0) break;
@@ -262,9 +264,6 @@ int main_scfg(int argc, char *argv[])
 				loglk = pc_scfg_em(t, msa, ct, sd);
 			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 		}
-		pc_tree_format(t, &str, &max);
-		puts(str);
-		free(str);
 	} else if (test_mode) {
 		double *diff;
 		diff = kom_calloc(double, t->n_node);
@@ -276,6 +275,11 @@ int main_scfg(int argc, char *argv[])
 		}
 		free(diff);
 	}
+	if (!skip_dist && t->m == 4)
+		pc_model_dist(t, msa, PC_MD_TN93);
+	pc_tree_format(t, &str, &max_str);
+	puts(str);
+	free(str);
 
 	free(sd);
 	pc_tree_destroy(t);
