@@ -268,7 +268,7 @@ int main_scfg(int argc, char *argv[])
 		double loglk, *diff;
 		pc_transmat_init(t);
 		for (i = 0; i < max_iter; ++i) {
-			loglk = pc_scfg_em(t, msa, ct, sd);
+			loglk = pc_scfg_em(t, msa, ct0, sd);
 			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
 		}
 		diff = kom_calloc(double, t->n_node);

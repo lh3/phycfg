@@ -207,21 +207,18 @@ static void pc_scfg_cons(const double *cnt, int32_t m, pc_constype_t ct, double 
 		if (ct == PC_CT_REV) {
 			return;
 		} else if (ct == PC_CT_HKY && m == 4) { // HKY (nucleotide only)
-			double ts, tv, pi[4], tot = 0.0;
+			double tv, pi[4], tot = 0.0;
 			for (a = 0; a < m; ++a) {
 				for (b = 0, pi[a] = 0.0; b < m; ++b)
 					pi[a] += tmp[a * m + b];
 				tot += pi[a];
 			}
 			for (a = 0; a < m; ++a) pi[a] /= tot;
-			ts = .25  * ((tmp[2] + tmp[8]) / (pi[0] * pi[2]) + (tmp[7] + tmp[13]) / (pi[1] * pi[3]));
 			tv = .125 * ((tmp[1] + tmp[4]) / (pi[0] * pi[1]) + (tmp[3] + tmp[12]) / (pi[0] * pi[3]) + (tmp[6] + tmp[9]) / (pi[1] * pi[2]) + (tmp[11] + tmp[14]) / (pi[2] * pi[3]));
-			tmp[2] = tmp[8] = tmp[7] = tmp[13] = ts;
-			tmp[1] = tmp[3] = tmp[4] = tmp[6] = tmp[9] = tmp[11] = tmp[12] = tmp[14] = tv;
-			for (a = 0; a < 4; ++a)
-				for (b = 0; b < 4; ++b)
-					if (a != b) // don't change the diagonal
-						tmp[a * m + b] *= pi[a] * pi[b];
+			tmp[1]  = tmp[4]  = tv * (pi[0] * pi[1]);
+			tmp[3]  = tmp[12] = tv * (pi[0] * pi[3]);
+			tmp[6]  = tmp[9]  = tv * (pi[1] * pi[2]);
+			tmp[11] = tmp[14] = tv * (pi[2] * pi[3]);
 		}
 	}
 }
