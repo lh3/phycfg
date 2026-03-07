@@ -215,7 +215,7 @@ int main_scfg(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0;
 	pc_model_t ct = PC_MD_NULL, ct0 = PC_MD_REV;
-	pc_scfg_t *sd;
+	pc_scfg_aux_t *sd;
 
 	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
@@ -243,7 +243,7 @@ int main_scfg(int argc, char *argv[])
 	pc_msa_encode(msa, pc_msa_infer_rt(msa));
 	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
 	pc_tree_match_msa(t, msa);
-	sd = pc_scfg_new(t->n_node, t->m);
+	sd = pc_scfg_aux_new(t->n_node, t->m);
 
 	if (nni > 0) {
 		int32_t k, max = 0;

@@ -6,13 +6,13 @@
 #include "kommon.h"
 #include "phycfg.h"
 
-pc_scfg_t *pc_scfg_new(int32_t n_node, int32_t m)
+pc_scfg_aux_t *pc_scfg_aux_new(int32_t n_node, int32_t m)
 {
-	pc_scfg_t *s;
-	int32_t i, n_dbl = (sizeof(pc_scfg_t) * n_node + sizeof(double) - 1) / sizeof(double);
+	pc_scfg_aux_t *s;
+	int32_t i, n_dbl = (sizeof(pc_scfg_aux_t) * n_node + sizeof(double) - 1) / sizeof(double);
 	double *x;
 	x = kom_calloc(double, n_dbl + n_node * 3 * m);
-	s = (pc_scfg_t*)x;
+	s = (pc_scfg_aux_t*)x;
 	x += n_dbl;
 	for (i = 0; i < n_node; ++i) {
 		s[i].alpha  = x, x += m;
@@ -54,7 +54,7 @@ static inline void pc_scfg_emit(int32_t m, int32_t c, double *alpha)
 	}
 }
 
-double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_scfg_t *sd)
+double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_scfg_aux_t *sd)
 {
 	int32_t i, k, a, b, m = t->m;
 	double logh = 0.0, sum;
@@ -90,7 +90,7 @@ double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_s
 	return logh + log(sum); // this is equal to logh + log(h(root) * \sum_a alpha~(root,a) * beta~(root,a))
 }
 
-void pc_scfg_outside(const pc_tree_t *t, pc_scfg_t *sd)
+void pc_scfg_outside(const pc_tree_t *t, pc_scfg_aux_t *sd)
 {
 	int32_t i, a, b, m = t->m, root_idx = t->n_node - 1;
 	double *sib = kom_malloc(double, m);
@@ -128,7 +128,7 @@ void pc_scfg_outside(const pc_tree_t *t, pc_scfg_t *sd)
 /* Compute eta~[n_node*m*m] from inside/outside values already stored in sd.
  * For non-root u with parent v and sibling(s) w (except the root):
  *   eta~(u,b|a) = beta~(v,a) * alpha~(u,b) * prod_k alpha'~(sib_k,a) */
-void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_t *sd, double *eta)
+void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_aux_t *sd, double *eta)
 {
 	int32_t i, k, a, b, m = t->m, root_idx = t->n_node - 1;
 	double *sib = kom_malloc(double, m);
@@ -165,7 +165,7 @@ typedef struct {
  *   rotation 1 ((w,y)u, x)v:      eta1(a,b) = q * alpha'~(x,a) * alpha'~(w,b) * alpha'~(y,b)
  *   rotation 2 ((x,w)u, y)v:      eta2(a,b) = q * alpha'~(y,a) * alpha'~(w,b) * alpha'~(x,b)
  * Nodes that are leaves or the root are skipped (left uninitialized). */
-void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
+void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_aux_t *sd, double *eta3)
 { // eta shape: (n,3,m,m)
 	int32_t u, m = t->m;
 	for (u = 0; u < t->n_node - 1; ++u) {
@@ -264,7 +264,7 @@ pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_model_t ct, int32_t len, doub
 
 /* Compute posterior counts into cnt[n_node*m*m] (zeroed on entry) and return
  * the total log likelihood summed over all alignment columns. */
-double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_t *sd, double *cnt)
+double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_aux_t *sd, double *cnt)
 {
 	int32_t i, j, k, a, b, m = t->m;
 	double loglk = 0.0;
@@ -313,7 +313,7 @@ double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_t *sd, 
 	return loglk;
 }
 
-double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_t *sd)
+double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_aux_t *sd)
 {
 	int32_t m = t->m;
 	double *cnt = kom_malloc(double, (size_t)t->n_node * m * m);
@@ -332,10 +332,10 @@ void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t m
 {
 	int32_t m = t->m, k, l, u;
 	double logh, loglk, **eta3;
-	pc_scfg_t *sd;
+	pc_scfg_aux_t *sd;
 	pc_nni_t **nni;
 
-	sd = pc_scfg_new(t->n_node, m);
+	sd = pc_scfg_aux_new(t->n_node, m);
 	pc_transmat_init(t);
 	for (k = 0; k < max_iter; ++k) {
 		loglk = pc_scfg_em(t, msa, ct, sd);
@@ -380,10 +380,10 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max
 {
 	int32_t l, u, r, m = t->m, m2 = m * m, best_u = -1, best_r = 0;
 	double **eta3, best_delta = 0.0;
-	pc_scfg_t *sd;
+	pc_scfg_aux_t *sd;
 	pc_nni_t **nni;
 
-	sd = pc_scfg_new(t->n_node, m);
+	sd = pc_scfg_aux_new(t->n_node, m);
 
 	eta3 = kom_malloc(double*, msa->len);
 	eta3[0] = kom_malloc(double, (size_t)msa->len * t->n_node * 3 * m2);
@@ -435,9 +435,9 @@ void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_
 {
 	int32_t l, u, m = t->m, m2 = m * m;
 	double **eta;
-	pc_scfg_t *sd;
+	pc_scfg_aux_t *sd;
 
-	sd = pc_scfg_new(t->n_node, m);
+	sd = pc_scfg_aux_new(t->n_node, m);
 	eta = kom_malloc(double*, msa->len);
 	eta[0] = kom_malloc(double, (size_t)msa->len * t->n_node * m2);
 	for (l = 1; l < msa->len; ++l)
