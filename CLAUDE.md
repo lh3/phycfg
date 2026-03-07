@@ -24,7 +24,7 @@ Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not
 
 ### Command dispatch
 
-`main.c` is the entry point and also contains `main_view()`, `main_msaflt()`, and `main_reroot()`. `main_scfg()` lives in `scfg.c`. It dispatches subcommands:
+`main.c` is the entry point and contains `main_view()`, `main_msaflt()`, `main_reroot()`, and `main_scfg()`. It dispatches subcommands:
 - `view` → `main_view()` at the bottom of `main.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
 - `msaflt` → `main_msaflt()`; reads a gzip'd FASTA MSA, infers residue type, encodes, filters columns, and writes decoded FASTA to stdout; accepts `-m INT` (min non-gap/non-ambiguous residues per column, default 1) and `-1`/`-2`/`-3` to select codon positions
 - `reroot` → `main_reroot()`; reroots a tree and writes Newick to stdout; by default uses global midpoint rooting; with `-l STR` roots at the midpoint of the branch leading to the LCA of the listed leaves
@@ -97,7 +97,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o scfg.o`. Linke
   - `pc_scfg_inside(t, msa, pos, sd)` — inside (Felsenstein) pass for column `pos`; requires binary tree (`assert n_child∈{0,2}`); requires `seq_id≥0` on all leaves; returns `Σ_v log h(v) + log(Σ_a α̃(root,a)·q(a))` = log P(column)
   - `pc_scfg_outside(t, sd)` — outside pass (must follow inside); initializes β̃(root,a) = q(a)/h_root; propagates β̃ downward using α̃' from inside; returns void
   - `pc_scfg_eta(t, sd, eta)` — compute η̃[n_node*m*m] from inside/outside values in `sd`; for non-root u: `η̃(u,b|a) = β̃(par,a)·α̃(u,b)·∏ₖ α̃'(sibₖ,a)`; not defined at root (loop stops before root)
-  - `pc_scfg_eta_nni(t, sd, eta)` — compute η̃ for all three NNI rotations; `eta` has shape `(n_node, 3, m, m)`; only written for eligible nodes (internal, non-root); rotation 0 = original `((x,y)u,w)v`, 1 = `((w,y)u,x)v`, 2 = `((x,w)u,y)v`
+  - `pc_scfg_eta3_nni(t, sd, eta3)` — compute η̃ for all three NNI rotations; `eta3` has shape `(n_node, 3, m, m)`; only written for eligible nodes (internal, non-root); rotation 0 = original `((x,y)u,w)v`, 1 = `((w,y)u,x)v`, 2 = `((x,w)u,y)v`
   - `pc_scfg_em_branch(t, ct, len, eta, u, rotation, max_itr)` — run EM on the m×m transition matrix of branch `u` (seeded from `t->p + u*m*m`) under a given NNI rotation using precomputed `eta[len][n_node*3*m*m]`; returns allocated `pc_nni_t*` (or NULL for leaves/root); caller must free
   - `pc_scfg_post_cnt(t, msa, sd, cnt)` — E-step over all MSA columns: zeros `cnt[n_node*m*m]`, runs inside/outside per column, accumulates normalized posterior branch counts; returns total log likelihood
   - `pc_scfg_em(t, msa, ct, sd)` — one EM round: calls `pc_scfg_post_cnt` then M-step via `pc_model_matrix` + row-normalise `t->p` in-place; returns total log likelihood
