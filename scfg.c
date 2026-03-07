@@ -193,36 +193,6 @@ void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
 	}
 }
 
-static void pc_scfg_cons(const double *cnt, int32_t m, pc_model_t ct, double *tmp)
-{
-	int32_t a, b;
-	if (ct == PC_MD_NULL) {
-		memcpy(tmp, cnt, sizeof(double) * m * m);
-	} else { // so far all the other models are reversible
-		for (a = 0; a < m; ++a) { // tmp is symmetric
-			tmp[a * m + a] = cnt[a * m + a];
-			for (b = 0; b < a; ++b)
-				tmp[a * m + b] = tmp[b * m + a] = .5 * (cnt[a * m + b] + cnt[b * m + a]);
-		}
-		if (ct == PC_MD_REV) {
-			return;
-		} else if (ct == PC_MD_HKY && m == 4) { // HKY (nucleotide only)
-			double tv, pi[4], tot = 0.0;
-			for (a = 0; a < m; ++a) {
-				for (b = 0, pi[a] = 0.0; b < m; ++b)
-					pi[a] += tmp[a * m + b];
-				tot += pi[a];
-			}
-			for (a = 0; a < m; ++a) pi[a] /= tot;
-			tv = .125 * ((tmp[1] + tmp[4]) / (pi[0] * pi[1]) + (tmp[3] + tmp[12]) / (pi[0] * pi[3]) + (tmp[6] + tmp[9]) / (pi[1] * pi[2]) + (tmp[11] + tmp[14]) / (pi[2] * pi[3]));
-			tmp[1]  = tmp[4]  = tv * (pi[0] * pi[1]);
-			tmp[3]  = tmp[12] = tv * (pi[0] * pi[3]);
-			tmp[6]  = tmp[9]  = tv * (pi[1] * pi[2]);
-			tmp[11] = tmp[14] = tv * (pi[2] * pi[3]);
-		}
-	}
-}
-
 static void pc_scfg_c2p(int32_t m, const double *c, double *p)
 {
 	int32_t a, b;
@@ -242,7 +212,7 @@ static void pc_scfg_cnt2p(pc_tree_t *t, const double *cnt, pc_model_t ct)
 	for (u = 0; u < t->n_node; ++u) {
 		const double *cnt_u = cnt + (size_t)u * m * m;
 		double *p_u = t->p + (size_t)u * m * m;
-		pc_scfg_cons(cnt_u, m, ct, tmp);
+		pc_model_matrix(cnt_u, m, ct, tmp);
 		pc_scfg_c2p(m, tmp, p_u);
 	}
 	free(tmp);
@@ -284,7 +254,7 @@ pc_nni_t *pc_scfg_em_branch(const pc_tree_t *t, pc_model_t ct, int32_t len, doub
 				for (b = 0; b < m; ++b)
 					cnt[a * m + b] += tmp[a * m + b] * s;
 		}
-		pc_scfg_cons(cnt, m, ct, tmp2);
+		pc_model_matrix(cnt, m, ct, tmp2);
 		pc_scfg_c2p(m, tmp2, q->p);
 		q->loglk = loglk;
 	}

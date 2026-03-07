@@ -33,7 +33,7 @@ typedef struct {
 	uint8_t **msa; // len rows and n_seq columns
 } pc_msa_t;
 
-typedef enum { PC_MD_ERR, PC_MD_NULL, PC_MD_REV, PC_MD_HKY } pc_model_t;
+typedef enum { PC_MD_ERR, PC_MD_NULL, PC_MD_REV, PC_MD_TN93 } pc_model_t;
 
 typedef struct {
 	double h, *alpha, *alpha2, *beta; // pointers point to x[]
@@ -81,6 +81,8 @@ void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_
 void pc_scfg_nni_dbg(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter, int32_t max_iter_br);
 
 pc_model_t pc_model_from_str(const char *model);
+void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp);
+double pc_model_dist_TN93(const double *cnt, double *kR, double *kY);
 
 #ifdef __cplusplus
 }
