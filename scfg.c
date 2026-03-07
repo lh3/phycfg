@@ -196,14 +196,33 @@ void pc_scfg_eta3_nni(const pc_tree_t *t, const pc_scfg_t *sd, double *eta3)
 static void pc_scfg_cons(const double *cnt, int32_t m, pc_constype_t ct, double *tmp)
 {
 	int32_t a, b;
-	if (ct == PC_CT_REV) {
-		for (a = 0; a < m; ++a) {
+	if (ct == PC_CT_NULL) {
+		memcpy(tmp, cnt, sizeof(double) * m * m);
+	} else { // so far all the other models are reversible
+		for (a = 0; a < m; ++a) { // tmp is symmetric
 			tmp[a * m + a] = cnt[a * m + a];
 			for (b = 0; b < a; ++b)
 				tmp[a * m + b] = tmp[b * m + a] = .5 * (cnt[a * m + b] + cnt[b * m + a]);
 		}
-	} else { // PC_CT_NULL or unknown
-		memcpy(tmp, cnt, sizeof(double) * m * m);
+		if (ct == PC_CT_REV) {
+			return;
+		} else if (ct == PC_CT_HKY && m == 4) { // HKY (nucleotide only)
+			double ts, tv, pi[4], tot = 0.0;
+			for (a = 0; a < m; ++a) {
+				for (b = 0, pi[a] = 0.0; b < m; ++b)
+					pi[a] += tmp[a * m + b];
+				tot += pi[a];
+			}
+			for (a = 0; a < m; ++a) pi[a] /= tot;
+			ts = .25  * ((tmp[2] + tmp[8]) / (pi[0] * pi[2]) + (tmp[7] + tmp[13]) / (pi[1] * pi[3]));
+			tv = .125 * ((tmp[1] + tmp[4]) / (pi[0] * pi[1]) + (tmp[3] + tmp[12]) / (pi[0] * pi[3]) + (tmp[6] + tmp[9]) / (pi[1] * pi[2]) + (tmp[11] + tmp[14]) / (pi[2] * pi[3]));
+			tmp[2] = tmp[8] = tmp[7] = tmp[13] = ts;
+			tmp[1] = tmp[3] = tmp[4] = tmp[6] = tmp[9] = tmp[11] = tmp[12] = tmp[14] = tv;
+			for (a = 0; a < 4; ++a)
+				for (b = 0; b < 4; ++b)
+					if (a != b) // don't change the diagonal
+						tmp[a * m + b] *= pi[a] * pi[b];
+		}
 	}
 }
 
@@ -443,6 +462,14 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct, int32_t 
 	for (u = 0; u < 3 * t->n_node; ++u) free(nni[u]);
 	free(nni); free(eta3[0]); free(eta3); free(sd);
 	return best_delta;
+}
+
+pc_constype_t pc_scfg_str2cons(const char *model)
+{
+	if (strcmp(model, "null") == 0 || strcmp(model, "NULL") == 0) return PC_CT_NULL;
+	if (strcmp(model, "rev") == 0 || strcmp(model, "GTR") == 0 || strcmp(model, "gtr") == 0) return PC_CT_REV;
+	if (strcmp(model, "HKY") == 0 || strcmp(model, "hky") == 0) return PC_CT_HKY;
+	return PC_CT_ERR;
 }
 
 void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_constype_t ct0, pc_constype_t ct1, int32_t max_iter_br, double *diff)

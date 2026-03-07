@@ -214,22 +214,24 @@ int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
 	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0;
-	pc_constype_t ct = PC_CT_NULL;
+	pc_constype_t ct = PC_CT_NULL, ct0 = PC_CT_REV;
 	pc_scfg_t *sd;
 
-	while (ketopt(&o, argc, argv, 1, "m:b:n:rt", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
-		else if (o.opt == 'm') max_iter = atoi(o.arg);
+		else if (o.opt == 'x') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
-		else if (o.opt == 'r') ct = PC_CT_REV;
-		else if (o.opt == 't') test_mode = 1;
+		else if (o.opt == 'm') ct = pc_scfg_str2cons(o.arg);
+		else if (o.opt == 't') ct0 = pc_scfg_str2cons(o.arg), test_mode = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
 		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -m STR    model: null, GTR or HKY [null]\n");
 		fprintf(stderr, "  -n INT    max NNI topology search rounds (0 for debug) [%d]\n", nni);
-		fprintf(stderr, "  -m INT    EM iterations per round [%d]\n", max_iter);
+		fprintf(stderr, "  -x INT    EM iterations per round [%d]\n", max_iter);
 		fprintf(stderr, "  -b INT    EM iterations per branch [%d]\n", max_iter_br);
+		fprintf(stderr, "  -t STR    test model [rev]\n");
 		return 1;
 	}
 
@@ -270,7 +272,7 @@ int main_scfg(int argc, char *argv[])
 			fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
 		}
 		diff = kom_calloc(double, t->n_node);
-		pc_scfg_cmp_ct(t, msa, PC_CT_REV, PC_CT_NULL, max_iter_br, diff);
+		pc_scfg_cmp_ct(t, msa, ct0, ct, max_iter_br, diff);
 		for (i = 0; i < t->n_node; ++i) {
 			const pc_node_t *v = t->node[i];
 			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
