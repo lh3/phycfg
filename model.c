@@ -52,7 +52,7 @@ static void pc_model_matrix_TN93(const double *cnt, double *out)
 double pc_model_dist_TN93(const double *cnt, double *kR, double *kY)
 {
 	int32_t i;
-	double p[16], pi[4], sym[16], tot, t, e_1, e_R, e_Y, pi_R, pi_Y;
+	double p[16], pi[4], sym[16], tot, t, e_1, e_R, e_Y, pi_R, pi_Y, beta_inv;
 	pc_model_symm(cnt, 4, sym);
 	tot = pc_model_freq(sym, 4, pi);
 	for (i = 0, t = 1.0 / tot; i < 16; ++i)
@@ -66,7 +66,8 @@ double pc_model_dist_TN93(const double *cnt, double *kR, double *kY)
 	t = log(e_1);
 	*kR = (log(e_R) / t - pi_Y) / pi_R;
 	*kY = (log(e_Y) / t - pi_R) / pi_Y;
-	return -t;
+	beta_inv = 2.0 * (pi[0] * pi[2] * (*kR) + pi[1] * pi[3] * (*kY) + pi_R * pi_Y);
+	return -t * beta_inv;
 }
 
 void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp)
