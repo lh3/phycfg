@@ -385,7 +385,7 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max
 	return best_delta;
 }
 
-void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_model_t ct1, int32_t max_iter_br, double *diff)
+void pc_scfg_model_cmp(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff)
 {
 	int32_t l, u, m = t->m, m2 = m * m;
 	double **eta;
@@ -402,9 +402,9 @@ void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_
 		pc_scfg_eta(t, sd, eta[l]);
 	}
 	for (u = 0; u < t->n_node; ++u) {
-		pc_nni_t *nni0 = pc_scfg_em_branch(t, ct0, msa->len, eta, u, -1, max_iter_br);
-		pc_nni_t *nni1 = pc_scfg_em_branch(t, ct1, msa->len, eta, u, -1, max_iter_br);
-		diff[u] = nni0 == NULL? 0.0 : nni1->loglk - nni0->loglk;
+		pc_nni_t *nni0 = pc_scfg_em_branch(t, md0, msa->len, eta, u, -1, max_iter_br);
+		pc_nni_t *nni1 = pc_scfg_em_branch(t, md1, msa->len, eta, u, -1, max_iter_br);
+		diff[u] = nni0 == NULL? 0.0 : nni0->loglk - nni1->loglk;
 		free(nni0); free(nni1);
 	}
 	free(eta[0]); free(eta); free(sd);

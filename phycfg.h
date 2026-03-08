@@ -39,7 +39,7 @@ typedef struct {
 	uint8_t **msa; // the msa of shape (len, n_seq)
 } pc_msa_t;
 
-typedef enum { PC_MD_ERR, PC_MD_NULL, PC_MD_REV, PC_MD_TN93 } pc_model_t;
+typedef enum { PC_MD_UNDEF = -1, PC_MD_NULL = 0, PC_MD_REV, PC_MD_TN93 } pc_model_t;
 
 typedef struct {
 	double h, *alpha, *alpha2, *beta;
@@ -96,13 +96,42 @@ pc_scfg_buf_t *pc_scfg_buf_new(int32_t n_node, int32_t m);
 void pc_transmat_init(pc_tree_t *t);
 double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_buf_t *sd);
 double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
-void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_model_t ct1, int32_t max_iter_br, double *diff);
 
+/**
+ * Compare two models at each branch
+ *
+ * @param t           tree, ideally converged with the smaller model
+ * @param msa         MSA
+ * @param md0         1st model, typically the larger model
+ * @param md1         2nd model, typically the smaller model
+ * @param max_iter_br max EM rounds on each branch
+ * @param diff        [out] log likelihood ratio log(P(md0)/P(md1)), of shape (n_node)
+ */
+void pc_scfg_model_cmp(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff);
+
+// infer model from string; PC_MD_UNDEF if not defined
 pc_model_t pc_model_from_str(const char *model_str);
-void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
+
+// get the degree of freedom of a model
 int32_t pc_model_df(pc_model_t md, int32_t m);
-double pc_model_lrt(pc_model_t md_small, pc_model_t md_large, int32_t m, double lr);
-double pc_model_BIC(pc_model_t md_small, pc_model_t md_large, int32_t m, int32_t len, double lr);
+
+/**
+ * Likelihood ratio test (typically on the output of pc_scfg_model_cmp)
+ *
+ * @param md0         first model
+ * @param md1         second model of different degrees of freedom
+ * @param m           sizeo fo the alphabet
+ * @param lr          log likelihood ratio
+ *
+ * @return P-value under Wilks' theorem
+ */
+double pc_model_lrt(pc_model_t md0, pc_model_t md1, int32_t m, double lr);
+
+// BIC difference
+double pc_model_BIC(pc_model_t md0, pc_model_t md1, int32_t m, int32_t len, double lr);
+
+// estimate branch lengths; only TN93 is supported for now
+void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
 
 #ifdef __cplusplus
 }

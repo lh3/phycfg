@@ -213,8 +213,8 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, test_mode = 0, skip_dist = 0, max_str = 0;
-	pc_model_t ct = PC_MD_NULL, ct0 = PC_MD_REV;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0;
+	pc_model_t md = PC_MD_NULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
 	pc_scfg_buf_t *sd;
 	double loglk;
 	char *str = 0;
@@ -223,8 +223,8 @@ int main_scfg(int argc, char *argv[])
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'x') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
-		else if (o.opt == 'm') ct = pc_model_from_str(o.arg);
-		else if (o.opt == 't') ct0 = pc_model_from_str(o.arg), test_mode = 1;
+		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
+		else if (o.opt == 't') md_test = pc_model_from_str(o.arg);
 		else if (o.opt == 'D') skip_dist = 1;
 	}
 	if (argc - o.ind < 2) {
@@ -250,29 +250,30 @@ int main_scfg(int argc, char *argv[])
 
 	sd = pc_scfg_buf_new(t->n_node, t->m);
 	pc_transmat_init(t);
+	md_EM = md_test != PC_MD_UNDEF? md_test : md;
 	for (i = 0; i < max_iter; ++i) {
-		loglk = pc_scfg_em(t, msa, ct, sd);
+		loglk = pc_scfg_em(t, msa, md_EM, sd);
 		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
 	}
 
 	if (nni > 0) {
 		int32_t k;
 		for (k = 0; k < nni; ++k) {
-			double diff = pc_scfg_nni(t, msa, ct, max_iter_br);
+			double diff = pc_scfg_nni(t, msa, md, max_iter_br);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i)
-				loglk = pc_scfg_em(t, msa, ct, sd);
+				loglk = pc_scfg_em(t, msa, md, sd);
 			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 		}
-	} else if (test_mode) {
+	} else if (md_test != PC_MD_UNDEF) {
 		double *diff;
 		diff = kom_calloc(double, t->n_node);
-		pc_scfg_cmp_ct(t, msa, ct0, ct, max_iter_br, diff);
+		pc_scfg_model_cmp(t, msa, md, md_test, max_iter_br, diff);
 		for (i = 0; i < t->n_node; ++i) {
 			const pc_node_t *v = t->node[i];
 			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
-			        v->name && v->name[0] ? v->name : ".", diff[i], pc_model_lrt(ct0, ct, t->m, diff[i]),
-					pc_model_BIC(ct0, ct, t->m, msa->len, diff[i]));
+			        v->name && v->name[0] ? v->name : ".", diff[i], pc_model_lrt(md_test, md, t->m, diff[i]),
+					pc_model_BIC(md_test, md, t->m, msa->len, diff[i]));
 		}
 		free(diff);
 	}

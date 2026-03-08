@@ -10,7 +10,7 @@ pc_model_t pc_model_from_str(const char *model)
 	if (strcmp(model, "null") == 0 || strcmp(model, "NULL") == 0) return PC_MD_NULL;
 	if (strcmp(model, "rev") == 0 || strcmp(model, "GTR") == 0 || strcmp(model, "gtr") == 0) return PC_MD_REV;
 	if (strcmp(model, "TN93") == 0 || strcmp(model, "tn93") == 0) return PC_MD_TN93;
-	return PC_MD_ERR;
+	return PC_MD_UNDEF;
 }
 
 int32_t pc_model_df(pc_model_t md, int32_t m)
@@ -18,21 +18,23 @@ int32_t pc_model_df(pc_model_t md, int32_t m)
 	if (md == PC_MD_NULL) return m * (m - 1);
 	if (md == PC_MD_REV) return (m - 1) * (m - 2);
 	if (md == PC_MD_TN93) return 3;
-	return -1;
+	return -1; // undefined
 }
 
-double pc_model_lrt(pc_model_t md_small, pc_model_t md_large, int32_t m, double lr)
+double pc_model_lrt(pc_model_t md0, pc_model_t md1, int32_t m, double lr)
 {
 	double lambda = 2.0 * (lr < 0.0? -lr : lr);
-	int32_t df_diff = pc_model_df(md_large, m) - pc_model_df(md_small, m);
+	int32_t df_diff = pc_model_df(md1, m) - pc_model_df(md0, m);
+	assert(df_diff != 0);
 	if (df_diff < 0) df_diff = -df_diff;
 	return kf_chi2_p(df_diff, lambda);
 }
 
-double pc_model_BIC(pc_model_t md_small, pc_model_t md_large, int32_t m, int32_t len, double lr)
+double pc_model_BIC(pc_model_t md0, pc_model_t md1, int32_t m, int32_t len, double lr)
 {
 	double lambda = 2.0 * (lr < 0.0? -lr : lr);
-	int32_t df_diff = pc_model_df(md_large, m) - pc_model_df(md_small, m);
+	int32_t df_diff = pc_model_df(md1, m) - pc_model_df(md0, m);
+	assert(df_diff != 0);
 	if (df_diff < 0) df_diff = -df_diff;
 	return lambda - df_diff * log(len);
 }
