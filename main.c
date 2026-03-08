@@ -270,8 +270,9 @@ int main_scfg(int argc, char *argv[])
 		pc_scfg_cmp_ct(t, msa, ct0, ct, max_iter_br, diff);
 		for (i = 0; i < t->n_node; ++i) {
 			const pc_node_t *v = t->node[i];
-			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
-			        v->name && v->name[0] ? v->name : ".", diff[i]);
+			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
+			        v->name && v->name[0] ? v->name : ".", diff[i], pc_model_lrt(ct0, ct, t->m, diff[i]),
+					pc_model_BIC(ct0, ct, t->m, msa->len, diff[i]));
 		}
 		free(diff);
 	}

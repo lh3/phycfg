@@ -100,6 +100,9 @@ void pc_scfg_cmp_ct(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct0, pc_
 
 pc_model_t pc_model_from_str(const char *model_str);
 void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
+int32_t pc_model_df(pc_model_t md, int32_t m);
+double pc_model_lrt(pc_model_t md_small, pc_model_t md_large, int32_t m, double lr);
+double pc_model_BIC(pc_model_t md_small, pc_model_t md_large, int32_t m, int32_t len, double lr);
 
 #ifdef __cplusplus
 }
