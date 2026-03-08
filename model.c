@@ -67,11 +67,13 @@ double pc_model_dist_TN93(const double *cnt, double *kR, double *kY)
 {
 	int32_t i;
 	double p[16], pi[4], sym[16], tot, t, e_1, e_R, e_Y, pi_R, pi_Y, beta_inv;
+	*kR = *kY = -1.0;
 	pc_model_symm(cnt, 4, sym);
 	tot = pc_model_freq(sym, 4, pi);
 	for (i = 0, t = 1.0 / tot; i < 16; ++i)
 		p[i] = sym[i] * t;
 	t = .25 * (p[1] / (pi[0] * pi[1]) + p[3] / (pi[0] * pi[3]) + p[6] / (pi[1] * pi[2]) + p[11] / (pi[2] * pi[3]));
+	if (t > 1.0) return -1.0; // failed
 	e_1 = 1.0 - t;
 	pi_R = pi[0] + pi[2];
 	pi_Y = pi[1] + pi[3];
