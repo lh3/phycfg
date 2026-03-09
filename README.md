@@ -69,28 +69,28 @@ ratio test and BIC difference at the last three columns.
 ## History
 
 I derived the SCFG formation for phylogenetic trees when [TreeFam][tf] was
-still my primary project at the Sanger Institute. The [date I put][old-date] in
-the initial notes on SCFG was 2006-11-26. A couple of months later, I started
-working on next-generation sequencing data analysis. Although I [gave a
-talk][youtube] at a [workshop][workshop] in September 2007, I still did not
+still my primary focus at the Sanger Institute. [My initial notes][old-date]
+date baack to November 26, 2006, but my focus shifted to next-generation
+sequencing data analysis a couple of months later. Although I [presented the
+concept][youtube] at a [workshop][workshop] in September 2007, I still did not
 write any code by then.
 
 I first [implemented][phycfg-old] the theory in 2018 to model cell lineage
 trees using single-cell SNVs produced for the [META-CS paper][meta-cs]. The
-code worked but it was sloppy and the result is non-interesting, so we did not
-include it in the paper. Half a month after my last code commit, I started a
-faculty job and left the SCFG formulation behind again.
+code was functional but it was sloppy and the result was non-interesting, so we
+did not include it in the paper. Half a month after my last code commit, I
+began my faculty position and left the SCFG formulation behind again.
 
-I came back to SCFG in 2025 when [Kevin Hu][kevin], a brilliant sophomore in
-Harvard at the time, worked with me to provide a more careful implementation.
-His code demonstrated the convergence of EM and could reconstruct ancestral
-sequences that are near identical to the [IQ-TREE implementation][iqtree-asr],
-confirming the theoretical correctness of SCFG. Encouraged by the result, I
-implemented the theory again. This is phycfg.
+I returned the project in 2025 when [Kevin Hu][kevin], a brilliant sophomore at
+Harvard then, worked with me to provide a more careful implementation.  His
+code demonstrated EM convergence and could reconstruct ancestral sequences
+nearly identical to those produced [by IQ-TREE][iqtree-asr], confirming the
+theoretical correctness of SCFG. Encouraged by these results, I implemented the
+theory again. This is phycfg.
 
-Richard Durbin told me that he maintains a list of unpublished work that is not
-abandoned yet. The SCFG formulation is the oldest in this list. I hope we can
-publish it some day.
+Richard Durbin once mentioned that he maintains a list of unpublished work that
+has not been abandoned yet. The SCFG formulation is the oldest entry on that
+list. I hope to see it finally published some day.
 
 [scfg-wiki]: https://en.wikipedia.org/wiki/Probabilistic_context-free_grammar
 [sub-model]: https://iqtree.github.io/doc/Substitution-Models
