@@ -39,7 +39,7 @@ typedef struct {
 	uint8_t **msa; // the msa of shape (len, n_seq)
 } pc_msa_t;
 
-typedef enum { PC_MD_UNDEF = -1, PC_MD_NULL = 0, PC_MD_REV, PC_MD_TN93 } pc_model_t;
+typedef enum { PC_MD_UNDEF = -1, PC_MD_FULL = 0, PC_MD_REV, PC_MD_TN93 } pc_model_t;
 
 typedef struct {
 	double h, *alpha, *alpha2, *beta;

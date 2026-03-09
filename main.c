@@ -214,14 +214,14 @@ int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
 	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0;
-	pc_model_t md = PC_MD_NULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
+	pc_model_t md = PC_MD_FULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
 	pc_scfg_buf_t *sd;
 	double loglk;
 	char *str = 0;
 
-	while (ketopt(&o, argc, argv, 1, "x:b:n:m:t:D", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "e:b:n:m:t:D", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
-		else if (o.opt == 'x') max_iter = atoi(o.arg);
+		else if (o.opt == 'e') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
 		else if (o.opt == 't') md_test = pc_model_from_str(o.arg);
@@ -230,11 +230,11 @@ int main_scfg(int argc, char *argv[])
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
 		fprintf(stderr, "Options:\n");
-		fprintf(stderr, "  -m STR    model: null, GTR or HKY [null]\n");
-		fprintf(stderr, "  -n INT    max NNI topology search rounds (0 for debug) [%d]\n", nni);
-		fprintf(stderr, "  -x INT    EM iterations per round [%d]\n", max_iter);
-		fprintf(stderr, "  -b INT    EM iterations per branch [%d]\n", max_iter_br);
-		fprintf(stderr, "  -t STR    test model [rev]\n");
+		fprintf(stderr, "  -m STR    model: full, rev/GTR or TN93 [full]\n");
+		fprintf(stderr, "  -n INT    max NNI topology search rounds [%d]\n", nni);
+		fprintf(stderr, "  -e INT    number of EM iterations for the whole tree [%d]\n", max_iter);
+		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", max_iter_br);
+		fprintf(stderr, "  -t STR    test model; if set, use this model for initial EM []\n");
 		fprintf(stderr, "  -D        don't recalculate branch lengths for DNA sequences\n");
 		return 1;
 	}

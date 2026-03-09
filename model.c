@@ -7,7 +7,7 @@
 
 pc_model_t pc_model_from_str(const char *model)
 {
-	if (strcmp(model, "null") == 0 || strcmp(model, "NULL") == 0) return PC_MD_NULL;
+	if (strcmp(model, "full") == 0 || strcmp(model, "FULL") == 0 || strcmp(model, ".") == 0) return PC_MD_FULL;
 	if (strcmp(model, "rev") == 0 || strcmp(model, "GTR") == 0 || strcmp(model, "gtr") == 0) return PC_MD_REV;
 	if (strcmp(model, "TN93") == 0 || strcmp(model, "tn93") == 0) return PC_MD_TN93;
 	return PC_MD_UNDEF;
@@ -15,7 +15,7 @@ pc_model_t pc_model_from_str(const char *model)
 
 int32_t pc_model_df(pc_model_t md, int32_t m)
 {
-	if (md == PC_MD_NULL) return m * (m - 1);
+	if (md == PC_MD_FULL) return m * (m - 1);
 	if (md == PC_MD_REV) return (m - 1) * (m - 2);
 	if (md == PC_MD_TN93) return 3;
 	return -1; // undefined
@@ -84,7 +84,7 @@ void pc_model_matrix(const double *cnt, int32_t m, pc_model_t md, double *tmp)
 	} else if (md == PC_MD_TN93) {
 		assert(m == 4);
 		pc_model_matrix_TN93(cnt, tmp);
-	} else { // PC_MD_NULL or undefined
+	} else { // PC_MD_FULL or undefined
 		memcpy(tmp, cnt, sizeof(double) * m * m);
 	}
 }
