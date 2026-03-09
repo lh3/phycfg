@@ -66,6 +66,11 @@ phycfg scfg -t TN93 -m GTR test/CCNE.nhx.gz test/CCNE.mfa.gz
 On `CD`-lines, it reports the log likelihood ratio, P-value of the likelihood
 ratio test and BIC difference at the last three columns.
 
+## Limitations
+
+Phycfg is a ***proof-of-concept*** implementation for now. It has only been
+tested on a few examples and is not very robust in general.
+
 ## History
 
 I derived the SCFG formation for phylogenetic trees when [TreeFam][tf] was
