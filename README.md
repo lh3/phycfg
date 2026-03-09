@@ -1,11 +1,11 @@
 ## Introduction
 
-Phycfg is a ***proof-of-concept*** tool that demonstrates a new way to model
-**rooted** phylogenetic trees in the maximum likelihood (ML) framework. It
-applies [Stochastic Context-Free Grammar][scfg-wiki] (SCFG) to trees and
-enables flexible parameter estimation with the EM algorithm. I derived the SCFG
-formulation in 2006 but did not publish it. To the best of my knowledge, this
-work is still novel.
+Phycfg is a ***proof-of-concept*** tool that demonstrates a novel approach to
+modeling **rooted** phylogenetic trees within the maximum likelihood (ML)
+framework. By applying [Stochastic Context-Free Grammar][scfg-wiki] (SCFG) to
+tree structures, it enables flexible parameter estimation via the EM
+algorithm. I derived the SCFG formulation in 2006 but did not publish it. To
+the best of my knowledge, this work is still novel.
 
 You can find the theory of SCFG in the [tex](tex) directory. Older notes in
 [tex-old](tex-old) provide more background.
@@ -75,22 +75,22 @@ working on next-generation sequencing data analysis. Although I [gave a
 talk][youtube] at a [workshop][workshop] in September 2007, I still did not
 write any code by then.
 
-I first [implemented][phycfg-old] the theory in 2018 to model the cell lineage
-tree using single-cell SNVs produced for the [META-CS paper][meta-cs]. The code
-worked but the result is non-interesting, so we did not include it in the
-paper. Half a month after my last code commit, I started a faculty job and left
-the SCFG formulation behind again.
+I first [implemented][phycfg-old] the theory in 2018 to model cell lineage
+trees using single-cell SNVs produced for the [META-CS paper][meta-cs]. The
+code worked but it was sloppy and the result is non-interesting, so we did not
+include it in the paper. Half a month after my last code commit, I started a
+faculty job and left the SCFG formulation behind again.
 
-I came back to SCFG in 2025 when Kevin Hu, a brilliant sophomore in Harvard,
-worked with me to provide a more careful implementation. His code demonstrated
-the convergence of EM and reconstructed ancestral sequences that are near
-identical to the IQ-TREE implementation, confirming the theoretical correctness
-of SCFG. Encouraged by the result, I implemented the theory again. This is
-phycfg.
+I came back to SCFG in 2025 when [Kevin Hu][kevin], a brilliant sophomore in
+Harvard at the time, worked with me to provide a more careful implementation.
+His code demonstrated the convergence of EM and could reconstruct ancestral
+sequences that are near identical to the [IQ-TREE implementation][iqtree-asr],
+confirming the theoretical correctness of SCFG. Encouraged by the result, I
+implemented the theory again. This is phycfg.
 
-Richard Durbin said that he maintains a list of unpublished work that still has
-a chance to get a publication. The SCFG formulation is the oldest in this list.
-I hope we can publish the theory some day.
+Richard Durbin told me that he maintains a list of unpublished work that is not
+abandoned yet. The SCFG formulation is the oldest in this list. I hope we can
+publish it some day.
 
 [scfg-wiki]: https://en.wikipedia.org/wiki/Probabilistic_context-free_grammar
 [sub-model]: https://iqtree.github.io/doc/Substitution-Models
@@ -102,3 +102,5 @@ I hope we can publish the theory some day.
 [workshop]: https://www.newton.ac.uk/seminar/10904/
 [meta-cs]: https://www.pnas.org/doi/abs/10.1073/pnas.2013106118
 [phycfg-old]: https://github.com/lh3/phycfg-old
+[kevin]: https://www.linkedin.com/in/kevin-hu-a35249234/
+[iqtree-asr]: https://iqtree.github.io/doc/Command-Reference#ancestral-sequence-reconstruction
