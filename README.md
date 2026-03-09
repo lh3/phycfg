@@ -70,7 +70,7 @@ ratio test and BIC difference at the last three columns.
 
 I derived the SCFG formation for phylogenetic trees when [TreeFam][tf] was
 still my primary focus at the Sanger Institute. [My initial notes][old-date]
-date baack to November 26, 2006, but my focus shifted to next-generation
+date back to November 26, 2006, but my focus shifted to next-generation
 sequencing data analysis a couple of months later. Although I [presented the
 concept][youtube] at a [workshop][workshop] in September 2007, I still did not
 write any code by then.
