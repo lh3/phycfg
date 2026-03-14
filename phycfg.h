@@ -5,12 +5,21 @@
 
 #include <stdint.h>
 
+typedef struct {
+	double *p; // transition matrix (m,m)
+	double *jc; // posterior joint count matrix (m,m)
+	double *h; // scaling factor (l)
+	double *alpha, *alpha2, *beta; // inside-outside functions (l,m) each
+	double x[];
+} pc_scfg_data_t;
+
 typedef struct pc_node_s {
 	int32_t n_child; // number of children
 	int32_t ftime; // finish time
 	int32_t seq_id; // sequence index in pc_msa_t; -1 for internal nodes or if missing
 	int32_t tmp; // temporary field
 	double d; // branch length
+	pc_scfg_data_t *q;
 	char *name; // node name
 	struct pc_node_s *parent; // parent node; NULL for the root
 	struct pc_node_s *child[]; // children; allocated along with the node
@@ -132,6 +141,11 @@ double pc_model_BIC(pc_model_t md0, pc_model_t md1, int32_t m, int32_t len, doub
 
 // estimate branch lengths; only TN93 is supported for now
 void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
+
+void pc_scfg_alloc(pc_tree_t *t, int32_t len);
+void pc_scfg_free(pc_tree_t *t);
+void pc_scfg_init_par(pc_tree_t *t);
+double pc_scfg_em2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
 
 #ifdef __cplusplus
 }
