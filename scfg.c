@@ -357,11 +357,8 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max
 		if (nni[u*3+0] == NULL) continue;
 		for (r = 1; r <= 2; ++r) {
 			double delta = nni[u*3+r]->loglk - nni[u*3+0]->loglk;
-			if (delta > best_delta) {
-				best_delta = delta;
-				best_u = u;
-				best_r = r;
-			}
+			if (delta > best_delta)
+				best_delta = delta, best_u = u, best_r = r;
 		}
 	}
 
@@ -372,11 +369,11 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max
 		int32_t xi = up->child[best_r - 1]->ftime; // child[0] for r=1, child[1] for r=2
 		double *p_tmp = kom_malloc(double, (size_t)t->n_node * m * m);
 		for (u = 0; u < t->n_node; ++u) t->node[u]->tmp = u;
+		memcpy(t->p + (size_t)up->ftime * m2, nni[best_u*3+best_r]->p, sizeof(double) * m2); // update the matrix at u
 		memcpy(p_tmp, t->p, sizeof(double) * (size_t)t->n_node * m * m);
 		pc_tree_rotate(t, xi);
 		for (u = 0; u < t->n_node; ++u) // u is new ftime; tmp is old ftime
 			memcpy(t->p + (size_t)u * m2, p_tmp + (size_t)t->node[u]->tmp * m2, sizeof(double) * m2);
-		memcpy(t->p + (size_t)up->ftime * m2, nni[best_u*3+best_r]->p, sizeof(double) * m2);
 		free(p_tmp);
 	}
 
