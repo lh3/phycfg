@@ -264,6 +264,16 @@ int main_scfg(int argc, char *argv[])
 			loglk = pc_scfg_em2(t, msa, md_EM);
 			fprintf(stderr, "LK2\t%d\t%.6f\n", i, loglk);
 		}
+		if (nni > 0) {
+			int32_t k;
+			for (k = 0; k < nni; ++k) {
+				double diff = pc_scfg_nni1(t, msa, md, max_iter_br);
+				if (diff == 0.0) break;
+				for (i = 0; i < max_iter; ++i)
+					loglk = pc_scfg_em2(t, msa, md);
+				fprintf(stderr, "NI2\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
+			}
+		}
 	} else if (nni > 0) {
 		int32_t k;
 		for (k = 0; k < nni; ++k) {
