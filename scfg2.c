@@ -260,6 +260,73 @@ double pc_scfg_em1(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 	return loglk;
 }
 
+static inline void pc_scfg_add_jc(int32_t m, const double *ua, const double *w2, const double *vb, const double *uq, double *uc, double *tmp)
+{
+	int32_t a, b;
+	double s;
+	for (a = 0, s = 0.0; a < m; ++a) {
+		double t = vb[a] * w2[a];
+		for (b = 0; b < m; ++b)
+			s += (tmp[a * m + b] = uq[a * m + b] * t * ua[b]);
+	}
+	for (a = 0, s = 1.0 / s; a < m; ++a)
+		for (b = 0; b < m; ++b)
+			uc[a * m + b] += tmp[a * m + b] * s;
+}
+
+double pc_scfg_em4(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double *q)
+{ // topology: ((x,y)u,w)v
+	int32_t i, l, a, b, m2 = m * m;
+	double *tmp, loglk = 0.0, *xq = q, *yq = xq + m2, *uq = yq + m2, *wq = uq + m2;
+	double *ua, *ub, *x2, *y2, *u2, *w2, *xc, *yc, *uc, *wc;
+	memcpy(xq, xp->q->p, sizeof(double) * m2);
+	memcpy(yq, yp->q->p, sizeof(double) * m2);
+	memcpy(uq, up->q->p, sizeof(double) * m2);
+	memcpy(wq, wp->q->p, sizeof(double) * m2);
+	tmp = kom_calloc(double, 5 * m2 + 6 * m);
+	xc = tmp + m2, yc = xc + m2, uc = yc + m2, wc = uc + m2;
+	ua = wc + m2, ub = ua + m;
+	x2 = ub + m, y2 = x2 + m, u2 = y2 + m, w2 = u2 + m;
+	for (i = 0; i < max_itr; ++i) {
+		memset(xc, 0, sizeof(double) * m2 * 4); // clear all counts as they are allocated together
+		for (l = 0, loglk = 0.0; l < len; ++l) {
+			const double *xa = &xp->q->alpha[l * m], *ya = &yp->q->alpha[l * m], *wa = &wp->q->alpha[l * m], *vb = &vp->q->beta[l * m]; // not affected
+			double s, hu1 = 1.0 / up->q->h[l]; // 1/h(u), the scaling factor at u
+			for (a = 0; a < m; ++a) // alpha2~(x,a)
+				for (b = 0, x2[a] = 0.0; b < m; ++b)
+					x2[a] += xq[a * m + b] * xa[b];
+			for (a = 0; a < m; ++a) // alpha2~(y,a)
+				for (b = 0, y2[a] = 0.0; b < m; ++b)
+					y2[a] += yq[a * m + b] * ya[b];
+			for (a = 0; a < m; ++a) // alpha2~(w,a)
+				for (b = 0, w2[a] = 0.0; b < m; ++b)
+					w2[a] += wq[a * m + b] * wa[b];
+			for (a = 0; a < m; ++a) // alpha~(u,a)
+				ua[a] = x2[a] * y2[a] * hu1;
+			for (a = 0; a < m; ++a) // alpha2~(u,a)
+				for (b = 0, u2[a] = 0.0; b < m; ++b)
+					u2[a] += uq[a * m + b] * ua[b];
+			for (b = 0, s = 0.0; b < m; ++b) { // beta~(u,b)
+				for (a = 0, ub[b] = 0.0; a < m; ++a)
+					ub[b] += vb[a] * w2[a] * uq[a * m + b];
+				s += ua[b] * ub[b];
+				ub[b] *= hu1;
+			}
+			loglk += log(s);
+			pc_scfg_add_jc(m, xa, y2, ub, xq, xc, tmp);
+			pc_scfg_add_jc(m, ya, x2, ub, yq, yc, tmp);
+			pc_scfg_add_jc(m, ua, w2, vb, uq, uc, tmp);
+			pc_scfg_add_jc(m, wa, u2, vb, wq, wc, tmp);
+		}
+		pc_model_matrix(xc, m, ct, tmp); pc_scfg_c2p(m, tmp, xq);
+		pc_model_matrix(yc, m, ct, tmp); pc_scfg_c2p(m, tmp, yq);
+		pc_model_matrix(uc, m, ct, tmp); pc_scfg_c2p(m, tmp, uq);
+		pc_model_matrix(wc, m, ct, tmp); pc_scfg_c2p(m, tmp, wq);
+	}
+	free(tmp);
+	return loglk;
+}
+
 double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br)
 {
 	int32_t l, u, r, m = t->m, m2 = m * m, best_u = -1, best_r = 0;
@@ -290,6 +357,52 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	if (best_u >= 0) {
 		pc_node_t *up = t->node[best_u];
 		memcpy(up->q->p, best_p, sizeof(double) * m2);
+		pc_tree_rotate(t, up->child[best_r - 1]->ftime);
+	}
+	free(best_p);
+	return best_delta;
+}
+
+double pc_scfg_nni4(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br)
+{
+	int32_t l, u, r, m = t->m, m2 = m * m, best_u = -1, best_r = 0;
+	double best_delta = 0.0, *best_p, *p;
+	best_p = kom_calloc(double, m2 * 4 * 4);
+	p = best_p + m2 * 4;
+	for (l = 0; l < msa->len; ++l) {
+		pc_scfg_inside2(t, msa, l);
+		pc_scfg_outside2(t, l);
+	}
+	for (u = 0; u < t->n_node - 1; ++u) { // skip the root
+		const pc_node_t *up = t->node[u], *vp = up->parent, *wp, *xp, *yp;
+		double loglk[3];
+		if (up->n_child != 2 || vp->n_child != 2) continue;
+		wp = vp->child[(vp->child[0] == up)];
+		xp = up->child[0], yp = up->child[1];
+		loglk[0] = pc_scfg_em4(m, msa->len, ct, xp, yp, up, wp, vp, max_iter_br, &p[0 * m2 * 4]);
+		loglk[1] = pc_scfg_em4(m, msa->len, ct, wp, yp, up, xp, vp, max_iter_br, &p[1 * m2 * 4]);
+		loglk[2] = pc_scfg_em4(m, msa->len, ct, xp, wp, up, yp, vp, max_iter_br, &p[2 * m2 * 4]);
+		for (r = 1; r <= 2; ++r) {
+			double delta = loglk[r] - loglk[0];
+			if (delta > best_delta) {
+				best_delta = delta, best_u = u, best_r = r;
+				memcpy(best_p, &p[r * m2 * 4], 4 * m2 * sizeof(double));
+			}
+		}
+	}
+	if (best_u >= 0) {
+		pc_node_t *up = t->node[best_u], *vp = up->parent, *wp = vp->child[(vp->child[0] == up)];
+		pc_node_t *xp = up->child[0], *yp = up->child[1];
+		memcpy(up->q->p, &best_p[2 * m2], sizeof(double) * m2);
+		if (best_r == 1) {
+			memcpy(wp->q->p, &best_p[0 * m2], sizeof(double) * m2);
+			memcpy(yp->q->p, &best_p[1 * m2], sizeof(double) * m2);
+			memcpy(xp->q->p, &best_p[3 * m2], sizeof(double) * m2);
+		} else {
+			memcpy(xp->q->p, &best_p[0 * m2], sizeof(double) * m2);
+			memcpy(wp->q->p, &best_p[1 * m2], sizeof(double) * m2);
+			memcpy(yp->q->p, &best_p[3 * m2], sizeof(double) * m2);
+		}
 		pc_tree_rotate(t, up->child[best_r - 1]->ftime);
 	}
 	free(best_p);
