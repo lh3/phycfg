@@ -103,8 +103,8 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
   - `pc_scfg_em_all(t, msa, ct)` — one EM round: `pc_scfg_post_cnt` then M-step via `pc_model_matrix` + row-normalise into `q->p`
   - `pc_scfg_em1(m, len, ct, xp, yp, up, wp, vp, max_itr, p)` — 1-branch EM for topology `((x,y)u,w)v`; optimises `p[m×m]` for branch `u`; `xp=yp=NULL` for non-NNI case (uses stored `up->q->alpha`); stops at improvement < 1e-6
   - `pc_scfg_nni1(t, msa, ct, max_iter_br)` — NNI with 1-branch EM; tries 3 rotations per eligible internal non-root node; applies best improving move; returns log-likelihood improvement
-  - `pc_scfg_em4(m, len, ct, xp, yp, up, wp, vp, max_itr, q)` — 4-branch EM for `((x,y)u,w)v`; `q[4×m×m]` for x/y/u/w; recomputes α̃'/β̃ from stored per-column arrays each iteration without re-running global inside/outside
-  - `pc_scfg_nni4(t, msa, ct, max_iter_br)` — NNI with 4-branch EM; updates x/y/u/w matrices on best move
+  - `pc_scfg_em5(m, len, ct, xp, yp, up, wp, vp, max_itr, q)` — 5-branch EM for topology `(((x,y)u,w)v,z)p`; `q[5×m×m]` for x/y/u/w/v; also updates v's branch when v has a parent; recomputes α̃'/β̃ from stored per-column arrays each iteration without re-running global inside/outside
+  - `pc_scfg_nni5(t, msa, ct, max_iter_br)` — NNI with 5-branch EM; updates x/y/u/w/v matrices on best move
   - `pc_scfg_model_cmp(t, msa, md0, md1, max_iter_br, diff)` — per-branch log-likelihood ratio `log(P(md0)/P(md1))`; writes to `diff[n_node]` (root entry = 0)
 
 - **`sfunc.c`** — special functions (declared in `pcpriv.h`):
