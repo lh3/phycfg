@@ -335,7 +335,7 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 	int32_t i, l, a, b, m2 = m * m;
 	double *tmp, loglk = 0.0, loglk0 = 0.0;
 	double *xq = q, *yq = xq + m2, *uq = yq + m2, *wq = uq + m2, *vq = wq + m2;
-	double *ua, *ub, *va, *x2, *y2, *u2, *w2, *z2, *xc, *yc, *uc, *wc, *vc;
+	double *ua, *ub, *va, *vb, *x2, *y2, *u2, *w2, *xc, *yc, *uc, *wc, *vc;
 	memcpy(xq, xp->q->p, sizeof(double) * m2);
 	memcpy(yq, yp->q->p, sizeof(double) * m2);
 	memcpy(uq, up->q->p, sizeof(double) * m2);
@@ -343,12 +343,12 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 	memcpy(vq, vp->q->p, sizeof(double) * m2);
 	tmp = kom_calloc(double, 6 * m2 + 8 * m);
 	xc = tmp + m2, yc = xc + m2, uc = yc + m2, wc = uc + m2, vc = wc + m2;
-	ua = vc + m2, ub = ua + m, va = ub + m;
-	x2 = va + m, y2 = x2 + m, u2 = y2 + m, w2 = u2 + m, z2 = w2 + m;
+	ua = vc + m2, ub = ua + m, va = ub + m, vb = va + m;
+	x2 = vb + m, y2 = x2 + m, u2 = y2 + m, w2 = u2 + m;
 	for (i = 0; i < max_itr; ++i) {
 		memset(xc, 0, sizeof(double) * m2 * 5); // clear all counts as they are allocated together
 		for (l = 0, loglk = 0.0; l < len; ++l) {
-			const double *xa = &xp->q->alpha[l * m], *ya = &yp->q->alpha[l * m], *wa = &wp->q->alpha[l * m], *vb = &vp->q->beta[l * m]; // not affected
+			const double *xa = &xp->q->alpha[l * m], *ya = &yp->q->alpha[l * m], *wa = &wp->q->alpha[l * m]; // not affected
 			double s, hu1 = 1.0 / up->q->h[l]; // 1/h(u), the scaling factor at u
 			for (a = 0; a < m; ++a) // alpha2~(x,a)
 				for (b = 0, x2[a] = 0.0; b < m; ++b)
@@ -364,6 +364,19 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 			for (a = 0; a < m; ++a) // alpha2~(u,a)
 				for (b = 0, u2[a] = 0.0; b < m; ++b)
 					u2[a] += uq[a * m + b] * ua[b];
+			if (vp->parent != 0) { // if vp is not the root
+				const pc_node_t *pp = vp->parent, *zp = pp->child[(pp->child[0] == vp)];
+				const double hv1 = 1.0 / vp->q->h[l], *pb = &pp->q->beta[l * m], *z2 = &zp->q->alpha2[l * m];
+				for (a = 0; a < m; ++a) // alpha~(v,a)
+					va[a] = u2[a] * w2[a] * hv1;
+				for (b = 0; b < m; ++b) { // beta~(v,b)
+					for (a = 0, vb[b] = 0.0; a < m; ++a)
+						vb[b] += pb[a] * z2[a] * vq[a * m + b];
+					vb[b] *= hv1;
+				}
+			} else {
+				vb = &vp->q->beta[l * m];
+			}
 			for (b = 0, s = 0.0; b < m; ++b) { // beta~(u,b)
 				for (a = 0, ub[b] = 0.0; a < m; ++a)
 					ub[b] += vb[a] * w2[a] * uq[a * m + b];
@@ -377,9 +390,6 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 			pc_scfg_add_jc(m, wa, u2, vb, wq, wc, tmp);
 			if (vp->parent != 0) {
 				const pc_node_t *pp = vp->parent, *zp = pp->child[(pp->child[0] == vp)];
-				const double hv1 = 1.0 / vp->q->h[l];
-				for (a = 0; a < m; ++a)
-					va[a] = u2[a] * w2[a] * hv1;
 				pc_scfg_add_jc(m, va, &zp->q->alpha2[l * m], &pp->q->beta[l * m], vq, vc, tmp);
 			}
 		}
