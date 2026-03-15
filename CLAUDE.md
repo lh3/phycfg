@@ -61,6 +61,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
   - `pc_tree_reduce(t, mark)` — return a new `pc_tree_t` spanning only leaves with `mark != 0`; suppresses unary internals, accumulates branch lengths; caller must `pc_tree_destroy` result
   - `pc_tree_lca(t, mark)` — return ftime of the LCA of all marked nodes via post-order count propagation; returns -1 if no nodes marked
   - `pc_tree_mid_longest(t, &dist_to_mid)` — find node `p` whose incoming branch contains the diameter midpoint (O(n) post-order); writes distance from `p` to midpoint into `*dist_to_mid`; returns `p`'s ftime or -1
+  - `pc_tree_rotate(t, xi)` — NNI rotation: given node x at ftime `xi`, transforms `((x,y)u,w)v` into `((w,y)u,x)v`; requires x's parent u and grandparent v to exist and v to be binary; calls `pc_tree_sync` on success; returns 0 on success, -1 if not possible
   - `pc_tree_reroot(t, nid, dist)` — place new root on the branch to node `nid` at distance `dist` from that node (pass `dist<0` for branch midpoint); then calls `pc_tree_sync`
   - `pc_tree_clone(t)` — deep copy of tree including nodes, names, and `m`; `node->q` (`pc_scfg_data_t`) is NOT cloned; caller must `pc_tree_destroy` the result
   - `pc_tree_format(t, &s, &max)` — format tree to Newick; reusable-buffer API (pass `NULL`/`0` first call; `s` and `max` updated in place); returns string length; caller frees `*s`
@@ -96,15 +97,15 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
     `alpha[len×m]` (α̃), `alpha2[len×m]` (α̃'), `beta[len×m]` (β̃); all in one `calloc` block via flexible array `x[]`
   - `pc_scfg_alloc(t, len)` — allocates `pc_scfg_data_t` at `node->q` for all nodes (skips already-allocated)
   - `pc_scfg_free(t)` — frees `node->q` for all nodes (in `pcpriv.h`)
-  - `pc_scfg_init_par(t)` — init `node->q->p`: non-root gets JC matrix from `node->d` (clamped ≥1e-3); root gets flat `1/m` prior
+  - `pc_scfg_init_par(t)` — init `node->q->p`: non-root gets JC matrix from `node->d` (falls back to 1e-3 if `d ≤ 0`); root gets flat `1/m` prior
   - `pc_scfg_inside(t, msa, pos)` — inside pass for column `pos`; writes `q->alpha[pos*m]`, `q->alpha2[pos*m]`, `q->h[pos]`; returns log P(column)
   - `pc_scfg_outside(t, pos)` — outside pass (after inside); writes `q->beta[pos*m]`; β̃(root,a)=q(a)/h_root; β̃(u,b)=(1/h_u)·Σ_a p(b|a)·β̃(par,a)·∏_sib α̃'(sib,a)
   - `pc_scfg_post_cnt(t, msa)` — E-step over all columns: zeros `q->jc`, accumulates normalised posterior branch counts; returns total log likelihood (in `pcpriv.h`)
   - `pc_scfg_em_all(t, msa, ct)` — one EM round: `pc_scfg_post_cnt` then M-step via `pc_model_matrix` + row-normalise into `q->p`
   - `pc_scfg_em1(m, len, ct, xp, yp, up, wp, vp, max_itr, p)` — 1-branch EM for topology `((x,y)u,w)v`; optimises `p[m×m]` for branch `u`; `xp=yp=NULL` for non-NNI case (uses stored `up->q->alpha`); stops at improvement < 1e-6
-  - `pc_scfg_nni1(t, msa, ct, max_iter_br)` — NNI with 1-branch EM; tries 3 rotations per eligible internal non-root node; applies best improving move; returns log-likelihood improvement
-  - `pc_scfg_em5(m, len, ct, xp, yp, up, wp, vp, max_itr, q)` — 5-branch EM for topology `(((x,y)u,w)v,z)p`; `q[5×m×m]` for x/y/u/w/v; also updates v's branch when v has a parent; recomputes α̃'/β̃ from stored per-column arrays each iteration without re-running global inside/outside
-  - `pc_scfg_nni5(t, msa, ct, max_iter_br)` — NNI with 5-branch EM; updates x/y/u/w/v matrices on best move
+  - `pc_scfg_nni1(t, msa, ct, max_iter_br)` — NNI with 1-branch EM; runs global inside/outside first; for each eligible internal non-root node evaluates original + 2 NNI rotations; applies best improving move via `pc_tree_rotate`; updates only `up->q->p`; returns log-likelihood improvement
+  - `pc_scfg_em5(m, len, ct, xp, yp, up, wp, vp, max_itr, q)` — 5-branch EM for topology `(((x,y)u,w)v,z)p`; `q[5×m×m]` for x/y/u/w/v; each iteration recomputes α̃'(x/y/w), α̃(u), α̃'(u), β̃(u) from stored α̃(x/y/w) and stored β̃(v) without re-running global inside/outside; v's branch is optimised only when `vp->parent != NULL` (v not root)
+  - `pc_scfg_nni5(t, msa, ct, max_iter_br)` — NNI with 5-branch EM; runs global inside/outside first; evaluates original + 2 NNI rotations per eligible node; on best move updates x/y/u/w matrices (remapped to post-rotation nodes) and v's matrix (if v has parent) via `pc_tree_rotate`
   - `pc_scfg_model_cmp(t, msa, md0, md1, max_iter_br, diff)` — per-branch log-likelihood ratio `log(P(md0)/P(md1))`; writes to `diff[n_node]` (root entry = 0)
 
 - **`sfunc.c`** — special functions (declared in `pcpriv.h`):
