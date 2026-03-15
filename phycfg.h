@@ -98,13 +98,6 @@ void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag);
  */
 char **pc_list_read(const char *o, int *n_);
 
-// Allocate buffer for SCFG calculation
-pc_scfg_buf_t *pc_scfg_buf_new(int32_t n_node, int32_t m);
-
-void pc_transmat_init(pc_tree_t *t);
-double pc_scfg_em(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, pc_scfg_buf_t *sd);
-double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
-
 /**
  * Compare two models at each branch
  *
@@ -115,7 +108,7 @@ double pc_scfg_nni(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max
  * @param max_iter_br max EM rounds on each branch
  * @param diff        [out] log likelihood ratio log(P(md0)/P(md1)), of shape (n_node)
  */
-void pc_scfg_model_cmp(const pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff);
+void pc_scfg_model_cmp(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff);
 
 // infer model from string; PC_MD_UNDEF if not defined
 pc_model_t pc_model_from_str(const char *model_str);
@@ -142,13 +135,10 @@ double pc_model_BIC(pc_model_t md0, pc_model_t md1, int32_t m, int32_t len, doub
 void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
 
 void pc_scfg_alloc(pc_tree_t *t, int32_t len);
-void pc_scfg_free(pc_tree_t *t);
 void pc_scfg_init_par(pc_tree_t *t);
-double pc_scfg_post_cnt2(pc_tree_t *t, const pc_msa_t *msa);
-double pc_scfg_em2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
+double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
 double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
 double pc_scfg_nni4(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
-void pc_scfg_model_cmp2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff);
 
 #ifdef __cplusplus
 }

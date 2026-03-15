@@ -251,7 +251,7 @@ int main_scfg(int argc, char *argv[])
 	pc_scfg_init_par(t);
 	md_EM = md_test != PC_MD_UNDEF? md_test : md;
 	for (i = 0; i < max_iter; ++i) {
-		loglk = pc_scfg_em2(t, msa, md_EM);
+		loglk = pc_scfg_em_all(t, msa, md_EM);
 		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
 	}
 
@@ -261,13 +261,13 @@ int main_scfg(int argc, char *argv[])
 			double diff = pc_scfg_nni1(t, msa, md, max_iter_br);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i)
-				loglk = pc_scfg_em2(t, msa, md);
+				loglk = pc_scfg_em_all(t, msa, md);
 			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 		}
 	} else if (md_test != PC_MD_UNDEF) {
 		double *diff;
 		diff = kom_calloc(double, t->n_node);
-		pc_scfg_model_cmp2(t, msa, md, md_test, max_iter_br, diff);
+		pc_scfg_model_cmp(t, msa, md, md_test, max_iter_br, diff);
 		for (i = 0; i < t->n_node; ++i) {
 			const pc_node_t *v = t->node[i];
 			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,

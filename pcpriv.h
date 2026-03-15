@@ -8,10 +8,8 @@ extern "C" {
 #endif
 
 // in scfg.c
-double pc_scfg_inside(const pc_tree_t *t, const pc_msa_t *msa, int32_t pos, pc_scfg_buf_t *sd);
-void pc_scfg_outside(const pc_tree_t *t, pc_scfg_buf_t *sd);
-void pc_scfg_eta(const pc_tree_t *t, const pc_scfg_buf_t *sd, double *eta);
-double pc_scfg_post_cnt(const pc_tree_t *t, const pc_msa_t *msa, pc_scfg_buf_t *sd, double *cnt);
+void pc_scfg_free(pc_tree_t *t);
+double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa);
 
 // in sfunc.c
 double kf_chi2_p(double df, double x);

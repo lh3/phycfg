@@ -3,7 +3,7 @@
 #include <string.h>
 #include "kommon.h"
 #include "knhx.h"
-#include "phycfg.h"
+#include "pcpriv.h"
 #include "khashl.h"
 KHASHL_MAP_INIT(KH_LOCAL, strmap_t, strmap, kh_cstr_t, int32_t, kh_hash_str, kh_eq_str)
 
@@ -125,6 +125,7 @@ void pc_tree_destroy(pc_tree_t *t)
 {
 	int32_t i;
 	if (t == NULL) return;
+	pc_scfg_free(t);
 	for (i = 0; i < t->n_node; ++i) {
 		free(t->node[i]->name);
 		free(t->node[i]);

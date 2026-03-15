@@ -56,6 +56,10 @@ void pc_scfg_init_par(pc_tree_t *t) // pc_node_t::q MUST BE allocated
 	}
 }
 
+/****************************
+ * Inside-outside algorithm *
+ ****************************/
+
 static inline void pc_scfg_emit(int32_t m, int32_t c, double *alpha)
 {
 	int32_t i;
@@ -67,7 +71,7 @@ static inline void pc_scfg_emit(int32_t m, int32_t c, double *alpha)
 	}
 }
 
-double pc_scfg_inside2(pc_tree_t *t, const pc_msa_t *msa, int32_t pos)
+double pc_scfg_inside(pc_tree_t *t, const pc_msa_t *msa, int32_t pos)
 {
 	int32_t i, k, a, b, m = t->m;
 	double logh = 0.0, sum;
@@ -103,7 +107,7 @@ double pc_scfg_inside2(pc_tree_t *t, const pc_msa_t *msa, int32_t pos)
 	return logh + log(sum); // this is equal to logh + log(h(root) * \sum_a alpha~(root,a) * beta~(root,a))
 }
 
-void pc_scfg_outside2(pc_tree_t *t, int32_t pos)
+void pc_scfg_outside(pc_tree_t *t, int32_t pos)
 {
 	int32_t i, a, b, m = t->m;
 	double *sib = kom_malloc(double, m);
@@ -139,18 +143,18 @@ void pc_scfg_outside2(pc_tree_t *t, int32_t pos)
 	free(sib);
 }
 
-double pc_scfg_post_cnt2(pc_tree_t *t, const pc_msa_t *msa)
+// fill pc_node_t::q->jc (posterior joint count)
+double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 {
 	int32_t i, j, k, a, b, m = t->m, m2 = m * m;
 	double loglk = 0.0;
-	double *tmp = kom_malloc(double, m2);
-	double *sib = kom_malloc(double, m);
+	double *tmp = kom_malloc(double, m2 + m), *sib = tmp + m2;
 	for (j = 0; j < t->n_node; ++j)
 		memset(t->node[j]->q->jc, 0, m2 * sizeof(double));
 	for (i = 0; i < msa->len; ++i) {
 		double sum, *jc;
-		loglk += pc_scfg_inside2(t, msa, i);
-		pc_scfg_outside2(t, i);
+		loglk += pc_scfg_inside(t, msa, i);
+		pc_scfg_outside(t, i);
 		for (j = 0; j < t->n_node - 1; ++j) {
 			const pc_node_t *u = t->node[j], *v = u->parent;
 			const double *alpha_u = &u->q->alpha[i * m], *beta_v = &v->q->beta[i * m];
@@ -187,7 +191,7 @@ double pc_scfg_post_cnt2(pc_tree_t *t, const pc_msa_t *msa)
 					jc[a*m + b] += alpha_r[b] * beta_r[b] * sum;
 		}
 	}
-	free(sib); free(tmp);
+	free(tmp);
 	return loglk;
 }
 
@@ -214,12 +218,16 @@ static void pc_scfg_cnt2p(pc_tree_t *t, pc_model_t ct)
 	free(tmp);
 }
 
-double pc_scfg_em2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct)
+double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct)
 {
-	double loglk = pc_scfg_post_cnt2(t, msa);
+	double loglk = pc_scfg_post_cnt(t, msa);
 	pc_scfg_cnt2p(t, ct);
 	return loglk;
 }
+
+/***************
+ * 1-branch EM *
+ ***************/
 
 static inline double pc_scfg_add_jc(int32_t m, const double *ua, const double *w2, const double *vb, const double *uq, double *uc, double *tmp)
 {
@@ -274,8 +282,8 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	best_p = kom_calloc(double, m2 * 4);
 	p = best_p + m2;
 	for (l = 0; l < msa->len; ++l) {
-		pc_scfg_inside2(t, msa, l);
-		pc_scfg_outside2(t, l);
+		pc_scfg_inside(t, msa, l);
+		pc_scfg_outside(t, l);
 	}
 	for (u = 0; u < t->n_node - 1; ++u) { // skip the root
 		const pc_node_t *up = t->node[u], *vp = up->parent, *wp, *xp, *yp;
@@ -303,13 +311,13 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	return best_delta;
 }
 
-void pc_scfg_model_cmp2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff)
+void pc_scfg_model_cmp(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff)
 {
 	int32_t l, u, m = t->m, m2 = m * m;
 	double *p = kom_calloc(double, m2);
 	for (l = 0; l < msa->len; ++l) {
-		pc_scfg_inside2(t, msa, l);
-		pc_scfg_outside2(t, l);
+		pc_scfg_inside(t, msa, l);
+		pc_scfg_outside(t, l);
 	}
 	for (u = 0; u < t->n_node - 1; ++u) {
 		const pc_node_t *up = t->node[u], *vp = up->parent, *wp = vp->child[(vp->child[0] == up)];
@@ -386,8 +394,8 @@ double pc_scfg_nni4(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	best_p = kom_calloc(double, m2 * 4 * 4);
 	p = best_p + m2 * 4;
 	for (l = 0; l < msa->len; ++l) {
-		pc_scfg_inside2(t, msa, l);
-		pc_scfg_outside2(t, l);
+		pc_scfg_inside(t, msa, l);
+		pc_scfg_outside(t, l);
 	}
 	for (u = 0; u < t->n_node - 1; ++u) { // skip the root
 		const pc_node_t *up = t->node[u], *vp = up->parent, *wp, *xp, *yp;

@@ -44,4 +44,4 @@ model.o: pcpriv.h phycfg.h kommon.h
 msa.o: kommon.h phycfg.h
 scfg.o: pcpriv.h phycfg.h kommon.h
 sfunc.o: pcpriv.h phycfg.h
-tree.o: kommon.h knhx.h phycfg.h khashl.h
+tree.o: kommon.h knhx.h pcpriv.h phycfg.h khashl.h
