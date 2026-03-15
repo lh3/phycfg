@@ -303,6 +303,28 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	return best_delta;
 }
 
+void pc_scfg_model_cmp2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff)
+{
+	int32_t l, u, m = t->m, m2 = m * m;
+	double *p = kom_calloc(double, m2);
+	for (l = 0; l < msa->len; ++l) {
+		pc_scfg_inside2(t, msa, l);
+		pc_scfg_outside2(t, l);
+	}
+	for (u = 0; u < t->n_node - 1; ++u) {
+		const pc_node_t *up = t->node[u], *vp = up->parent, *wp = vp->child[(vp->child[0] == up)];
+		double lk0 = pc_scfg_em1(m, msa->len, md0, 0, 0, up, wp, vp, max_iter_br, p);
+		double lk1 = pc_scfg_em1(m, msa->len, md1, 0, 0, up, wp, vp, max_iter_br, p);
+		diff[u] = lk0 - lk1;
+	}
+	diff[u] = 0.0; // root
+	free(p);
+}
+
+/***************
+ * 4-branch EM *
+ ***************/
+
 double pc_scfg_em4(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double *q)
 { // topology: ((x,y)u,w)v
 	int32_t i, l, a, b, m2 = m * m;

@@ -267,7 +267,7 @@ int main_scfg(int argc, char *argv[])
 		if (nni > 0) {
 			int32_t k;
 			for (k = 0; k < nni; ++k) {
-				double diff = pc_scfg_nni1(t, msa, md, max_iter_br);
+				double diff = pc_scfg_nni4(t, msa, md, max_iter_br);
 				if (diff == 0.0) break;
 				for (i = 0; i < max_iter; ++i) {
 					loglk = pc_scfg_em2(t, msa, md);
@@ -275,6 +275,17 @@ int main_scfg(int argc, char *argv[])
 				}
 				fprintf(stderr, "NI2\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 			}
+		} else if (md_test != PC_MD_UNDEF) {
+			double *diff;
+			diff = kom_calloc(double, t->n_node);
+			pc_scfg_model_cmp2(t, msa, md, md_test, max_iter_br, diff);
+			for (i = 0; i < t->n_node; ++i) {
+				const pc_node_t *v = t->node[i];
+				fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
+						v->name && v->name[0] ? v->name : ".", diff[i], pc_model_lrt(md_test, md, t->m, diff[i]),
+						pc_model_BIC(md_test, md, t->m, msa->len, diff[i]));
+			}
+			free(diff);
 		}
 	} else if (nni > 0) {
 		int32_t k;

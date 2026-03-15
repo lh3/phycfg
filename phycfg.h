@@ -148,6 +148,7 @@ void pc_scfg_init_par(pc_tree_t *t);
 double pc_scfg_em2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
 double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
 double pc_scfg_nni4(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
+void pc_scfg_model_cmp2(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff);
 
 #ifdef __cplusplus
 }
