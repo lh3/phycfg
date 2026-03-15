@@ -143,6 +143,25 @@ void pc_scfg_outside(pc_tree_t *t, int32_t pos)
 	free(sib);
 }
 
+/*****************
+ * All-branch EM *
+ *****************/
+
+static inline double pc_scfg_add_jc(int32_t m, const double *ua, const double *w2, const double *vb, const double *uq, double *uc, double *tmp)
+{
+	int32_t a, b;
+	double s, t;
+	for (a = 0, s = 0.0; a < m; ++a) {
+		double t = vb[a] * w2[a];
+		for (b = 0; b < m; ++b)
+			s += (tmp[a * m + b] = uq[a * m + b] * t * ua[b]); // \eta_u(b|a) = ua[b] * t
+	}
+	for (a = 0, t = 1.0 / s; a < m; ++a)
+		for (b = 0; b < m; ++b)
+			uc[a * m + b] += tmp[a * m + b] * t;
+	return s; // \sum_{a,b} p_u(b|a)\eta_u(b|a)
+}
+
 // fill pc_node_t::q->jc (posterior joint count)
 double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 {
@@ -152,14 +171,10 @@ double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 	for (j = 0; j < t->n_node; ++j)
 		memset(t->node[j]->q->jc, 0, m2 * sizeof(double));
 	for (i = 0; i < msa->len; ++i) {
-		double sum, *jc;
 		loglk += pc_scfg_inside(t, msa, i);
 		pc_scfg_outside(t, i);
 		for (j = 0; j < t->n_node - 1; ++j) {
-			const pc_node_t *u = t->node[j], *v = u->parent;
-			const double *alpha_u = &u->q->alpha[i * m], *beta_v = &v->q->beta[i * m];
-			const double *pj = u->q->p;
-			jc = u->q->jc;
+			pc_node_t *u = t->node[j], *v = u->parent;
 			for (a = 0; a < m; ++a) sib[a] = 1.0;
 			for (k = 0; k < v->n_child; ++k) {
 				if (v->child[k] != u) {
@@ -167,22 +182,14 @@ double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 					for (a = 0; a < m; ++a) sib[a] *= a2k[a];
 				}
 			}
-			for (a = 0, sum = 0.0; a < m; ++a) {
-				double x = beta_v[a] * sib[a];
-				for (b = 0; b < m; ++b)
-					sum += (tmp[a*m + b] = pj[a*m + b] * alpha_u[b] * x);
-			}
-			sum = 1.0 / sum;
-			for (a = 0; a < m; ++a)
-				for (b = 0; b < m; ++b)
-					jc[a*m + b] += tmp[a*m + b] * sum;
+			pc_scfg_add_jc(m, &u->q->alpha[i * m], sib, &v->q->beta[i * m], u->q->p, u->q->jc, tmp);
 		}
 		// special case: the root
 		assert(j == t->n_node - 1);
 		{
 			const pc_node_t *r = t->node[j];
 			const double *alpha_r = &r->q->alpha[i * m], *beta_r = &r->q->beta[i * m];
-			jc = r->q->jc;
+			double sum, *jc = r->q->jc;
 			for (a = 0, sum = 0.0; a < m; ++a)
 				sum += alpha_r[a] * beta_r[a];
 			sum = 1.0 / sum;
@@ -228,21 +235,6 @@ double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct)
 /***************
  * 1-branch EM *
  ***************/
-
-static inline double pc_scfg_add_jc(int32_t m, const double *ua, const double *w2, const double *vb, const double *uq, double *uc, double *tmp)
-{
-	int32_t a, b;
-	double s, t;
-	for (a = 0, s = 0.0; a < m; ++a) {
-		double t = vb[a] * w2[a];
-		for (b = 0; b < m; ++b)
-			s += (tmp[a * m + b] = uq[a * m + b] * t * ua[b]); // \eta_u(b|a) = ua[b] * t
-	}
-	for (a = 0, t = 1.0 / s; a < m; ++a)
-		for (b = 0; b < m; ++b)
-			uc[a * m + b] += tmp[a * m + b] * t;
-	return s; // \sum_{a,b} p_u(b|a)\eta_u(b|a)
-}
 
 double pc_scfg_em1(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double *p)
 { // ((x,y)u,w)v
