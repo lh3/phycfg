@@ -238,8 +238,9 @@ double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct)
 
 double pc_scfg_em1(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double *p)
 { // ((x,y)u,w)v
+	const double eps = 1e-6;
 	int32_t i, l, a;
-	double *cnt, *tmp, *ua, s, loglk = 0.0;
+	double *cnt, *tmp, *ua, s, loglk = 0.0, loglk0 = 0.0;
 	memcpy(p, up->q->p, sizeof(double) * m * m);
 	cnt = kom_calloc(double, 3 * m * m);
 	tmp = cnt + m * m;
@@ -261,6 +262,9 @@ double pc_scfg_em1(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 		}
 		pc_model_matrix(cnt, m, ct, tmp);
 		pc_scfg_c2p(m, tmp, p);
+		if (i >= 3 && loglk > loglk0 && loglk - loglk0 < eps)
+			break;
+		loglk0 = loglk;
 		//fprintf(stderr, "YY\t((%d,%d)%d,%d)\t%d\t%f\n", xp->ftime, yp->ftime, up->ftime, wp->ftime, i, loglk);
 	}
 	free(cnt);
@@ -327,8 +331,10 @@ void pc_scfg_model_cmp(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_mod
 
 double pc_scfg_em4(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double *q)
 { // topology: ((x,y)u,w)v
+	const double eps = 1e-6;
 	int32_t i, l, a, b, m2 = m * m;
-	double *tmp, loglk = 0.0, *xq = q, *yq = xq + m2, *uq = yq + m2, *wq = uq + m2;
+	double *tmp, loglk = 0.0, loglk0 = 0.0;
+	double *xq = q, *yq = xq + m2, *uq = yq + m2, *wq = uq + m2;
 	double *ua, *ub, *x2, *y2, *u2, *w2, *xc, *yc, *uc, *wc;
 	memcpy(xq, xp->q->p, sizeof(double) * m2);
 	memcpy(yq, yp->q->p, sizeof(double) * m2);
@@ -373,6 +379,9 @@ double pc_scfg_em4(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 		pc_model_matrix(yc, m, ct, tmp); pc_scfg_c2p(m, tmp, yq);
 		pc_model_matrix(uc, m, ct, tmp); pc_scfg_c2p(m, tmp, uq);
 		pc_model_matrix(wc, m, ct, tmp); pc_scfg_c2p(m, tmp, wq);
+		if (i >= 3 && loglk > loglk0 && loglk - loglk0 < eps)
+			break;
+		loglk0 = loglk;
 		//fprintf(stderr, "YY\t((%d,%d)%d,%d)\t%d\t%f\n", xp->ftime, yp->ftime, up->ftime, wp->ftime, i, loglk);
 	}
 	free(tmp);
