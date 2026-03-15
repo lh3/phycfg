@@ -213,20 +213,18 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0, test_mode = 0;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0;
 	pc_model_t md = PC_MD_FULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
-	pc_scfg_buf_t *sd;
 	double loglk;
 	char *str = 0;
 
-	while (ketopt(&o, argc, argv, 1, "e:b:n:m:t:Dx", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "e:b:n:m:t:D", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'e') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
 		else if (o.opt == 't') md_test = pc_model_from_str(o.arg);
 		else if (o.opt == 'D') skip_dist = 1;
-		else if (o.opt == 'x') test_mode = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -249,57 +247,27 @@ int main_scfg(int argc, char *argv[])
 	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
 	pc_tree_match_msa(t, msa);
 
-	sd = pc_scfg_buf_new(t->n_node, t->m);
-	pc_transmat_init(t);
+	pc_scfg_alloc(t, msa->len);
+	pc_scfg_init_par(t);
 	md_EM = md_test != PC_MD_UNDEF? md_test : md;
-	for (i = 0; i < max_iter && !test_mode; ++i) {
-		loglk = pc_scfg_em(t, msa, md_EM, sd);
+	for (i = 0; i < max_iter; ++i) {
+		loglk = pc_scfg_em2(t, msa, md_EM);
 		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
 	}
 
-	if (test_mode) {
-		pc_scfg_alloc(t, msa->len);
-		pc_scfg_init_par(t);
-		for (i = 0; i < max_iter; ++i) {
-			loglk = pc_scfg_em2(t, msa, md_EM);
-			//fprintf(stderr, "LK2\t%d\t%.6f\n", i, loglk);
-		}
-		if (nni > 0) {
-			int32_t k;
-			for (k = 0; k < nni; ++k) {
-				double diff = pc_scfg_nni4(t, msa, md, max_iter_br);
-				if (diff == 0.0) break;
-				for (i = 0; i < max_iter; ++i) {
-					loglk = pc_scfg_em2(t, msa, md);
-					fprintf(stderr, "XX2\t%d\t%.6f\n", i, loglk);
-				}
-				fprintf(stderr, "NI2\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
-			}
-		} else if (md_test != PC_MD_UNDEF) {
-			double *diff;
-			diff = kom_calloc(double, t->n_node);
-			pc_scfg_model_cmp2(t, msa, md, md_test, max_iter_br, diff);
-			for (i = 0; i < t->n_node; ++i) {
-				const pc_node_t *v = t->node[i];
-				fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
-						v->name && v->name[0] ? v->name : ".", diff[i], pc_model_lrt(md_test, md, t->m, diff[i]),
-						pc_model_BIC(md_test, md, t->m, msa->len, diff[i]));
-			}
-			free(diff);
-		}
-	} else if (nni > 0) {
+	if (nni > 0) {
 		int32_t k;
 		for (k = 0; k < nni; ++k) {
-			double diff = pc_scfg_nni(t, msa, md, max_iter_br);
+			double diff = pc_scfg_nni1(t, msa, md, max_iter_br);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i)
-				loglk = pc_scfg_em(t, msa, md, sd);
+				loglk = pc_scfg_em2(t, msa, md);
 			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 		}
 	} else if (md_test != PC_MD_UNDEF) {
 		double *diff;
 		diff = kom_calloc(double, t->n_node);
-		pc_scfg_model_cmp(t, msa, md, md_test, max_iter_br, diff);
+		pc_scfg_model_cmp2(t, msa, md, md_test, max_iter_br, diff);
 		for (i = 0; i < t->n_node; ++i) {
 			const pc_node_t *v = t->node[i];
 			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
@@ -314,7 +282,6 @@ int main_scfg(int argc, char *argv[])
 	puts(str);
 	free(str);
 
-	free(sd);
 	pc_tree_destroy(t);
 	pc_msa_destroy(msa);
 	return 0;

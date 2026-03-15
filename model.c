@@ -114,17 +114,12 @@ double pc_model_dist_TN93(const double *cnt, double *kR, double *kY)
 
 void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md)
 {
-	int32_t j, m = t->m;
-	double *cnt, kR, kY;
-	pc_scfg_buf_t *sd;
+	int32_t j;
+	double kR, kY;
 	assert(md == PC_MD_TN93);
-	pc_transmat_init(t);
-	sd = pc_scfg_buf_new(t->n_node, m);
-	cnt = kom_malloc(double, (size_t)t->n_node * m * m);
-	pc_scfg_post_cnt(t, msa, sd, cnt);
+	pc_scfg_alloc(t, msa->len);
+	pc_scfg_post_cnt2(t, msa);
 	for (j = 0; j < t->n_node - 1; ++j)
-		t->node[j]->d = pc_model_dist_TN93(cnt + (size_t)j * m * m, &kR, &kY);
+		t->node[j]->d = pc_model_dist_TN93(t->node[j]->q->jc, &kR, &kY);
 	t->node[j]->d = 0.0; // root is always 0
-	free(cnt);
-	free(sd);
 }

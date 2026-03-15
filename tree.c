@@ -118,11 +118,6 @@ pc_tree_t *pc_tree_clone(const pc_tree_t *t)
 
 	c->root = map[t->root->ftime];
 	c->m = t->m;
-	if (t->p) {
-		size_t sz = (size_t)t->n_node * t->m * t->m;
-		c->p = kom_malloc(double, sz);
-		memcpy(c->p, t->p, sz * sizeof(double));
-	}
 	return c;
 }
 
@@ -134,7 +129,6 @@ void pc_tree_destroy(pc_tree_t *t)
 		free(t->node[i]->name);
 		free(t->node[i]);
 	}
-	free(t->p);
 	free(t->node);
 	free(t);
 }
