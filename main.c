@@ -261,8 +261,10 @@ int main_scfg(int argc, char *argv[])
 		for (k = 0; k < nni; ++k) {
 			double diff = five_branch? pc_scfg_nni5(t, msa, md, max_iter_br) : pc_scfg_nni1(t, msa, md, max_iter_br);
 			if (diff == 0.0) break;
-			for (i = 0; i < max_iter; ++i)
+			for (i = 0; i < max_iter; ++i) {
 				loglk = pc_scfg_em_all(t, msa, md);
+				//fprintf(stderr, "NL\t%d\t%.6f\n", i, loglk);
+			}
 			fprintf(stderr, "NI\t%d\t%.6f\t%.6f\n", k + 1, loglk, diff);
 		}
 	} else if (md_test != PC_MD_UNDEF) {
