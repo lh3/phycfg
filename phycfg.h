@@ -138,7 +138,7 @@ void pc_scfg_alloc(pc_tree_t *t, int32_t len);
 void pc_scfg_init_par(pc_tree_t *t);
 double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
 double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
-double pc_scfg_nni4(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
+double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
 
 #ifdef __cplusplus
 }

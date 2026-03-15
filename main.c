@@ -213,18 +213,19 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0;
+	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0, five_branch = 0;
 	pc_model_t md = PC_MD_FULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
 	double loglk;
 	char *str = 0;
 
-	while (ketopt(&o, argc, argv, 1, "e:b:n:m:t:D", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "e:b:n:m:t:D5", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'e') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
 		else if (o.opt == 't') md_test = pc_model_from_str(o.arg);
 		else if (o.opt == 'D') skip_dist = 1;
+		else if (o.opt == '5') five_branch = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -258,7 +259,7 @@ int main_scfg(int argc, char *argv[])
 	if (nni > 0) {
 		int32_t k;
 		for (k = 0; k < nni; ++k) {
-			double diff = pc_scfg_nni1(t, msa, md, max_iter_br);
+			double diff = five_branch? pc_scfg_nni5(t, msa, md, max_iter_br) : pc_scfg_nni1(t, msa, md, max_iter_br);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i)
 				loglk = pc_scfg_em_all(t, msa, md);
