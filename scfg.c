@@ -346,7 +346,7 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 	ua = vc + m2, ub = ua + m, va = ub + m;
 	x2 = va + m, y2 = x2 + m, u2 = y2 + m, w2 = u2 + m, z2 = w2 + m;
 	for (i = 0; i < max_itr; ++i) {
-		memset(xc, 0, sizeof(double) * m2 * 4); // clear all counts as they are allocated together
+		memset(xc, 0, sizeof(double) * m2 * 5); // clear all counts as they are allocated together
 		for (l = 0, loglk = 0.0; l < len; ++l) {
 			const double *xa = &xp->q->alpha[l * m], *ya = &yp->q->alpha[l * m], *wa = &wp->q->alpha[l * m], *vb = &vp->q->beta[l * m]; // not affected
 			double s, hu1 = 1.0 / up->q->h[l]; // 1/h(u), the scaling factor at u
