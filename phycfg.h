@@ -1,11 +1,12 @@
 #ifndef PHYCFG_H
 #define PHYCFG_H
 
-#define PC_VERSION "0.0-dirty-r117"
+#define PC_VERSION "0.0-dirty-r118"
 
 #include <stdint.h>
 
 typedef struct {
+	double nni[3];
 	double *p; // transition matrix (m,m)
 	double *jc; // posterior joint count matrix (m,m)
 	double *h; // scaling factor (l)
@@ -108,7 +109,7 @@ char **pc_list_read(const char *o, int *n_);
  * @param max_iter_br max EM rounds on each branch
  * @param diff        [out] log likelihood ratio log(P(md0)/P(md1)), of shape (n_node)
  */
-void pc_scfg_model_cmp(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double *diff);
+void pc_scfg_model_cmp(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_model_t md1, int32_t max_iter_br, double eps, double *diff);
 
 // infer model from string; PC_MD_UNDEF if not defined
 pc_model_t pc_model_from_str(const char *model_str);
@@ -137,8 +138,8 @@ void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
 void pc_scfg_alloc(pc_tree_t *t, int32_t len);
 void pc_scfg_init_par(pc_tree_t *t);
 double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
-double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
-double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br);
+double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br, double eps);
+double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br, double eps);
 
 #ifdef __cplusplus
 }

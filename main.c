@@ -215,10 +215,10 @@ int main_scfg(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0, five_branch = 0;
 	pc_model_t md = PC_MD_FULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
-	double loglk;
+	double loglk, eps = 0.001;
 	char *str = 0;
 
-	while (ketopt(&o, argc, argv, 1, "e:b:n:m:t:D5", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "w:b:n:m:t:D5e:", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
 		else if (o.opt == 'e') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
@@ -226,13 +226,15 @@ int main_scfg(int argc, char *argv[])
 		else if (o.opt == 't') md_test = pc_model_from_str(o.arg);
 		else if (o.opt == 'D') skip_dist = 1;
 		else if (o.opt == '5') five_branch = 1;
+		else if (o.opt == 'e') eps = atof(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg scfg [options] <tree.nhx.gz> <aln.mfa.gz>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -m STR    model: full, rev/GTR or TN93 [full]\n");
+		fprintf(stderr, "  -e FLOAT  epsilon [%g]\n", eps);
 		fprintf(stderr, "  -n INT    max NNI topology search rounds [%d]\n", nni);
-		fprintf(stderr, "  -e INT    number of EM iterations for the whole tree [%d]\n", max_iter);
+		fprintf(stderr, "  -w INT    number of EM iterations for the whole tree [%d]\n", max_iter);
 		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", max_iter_br);
 		fprintf(stderr, "  -t STR    test model; if set, use this model for initial EM []\n");
 		fprintf(stderr, "  -D        don't recalculate branch lengths for DNA sequences\n");
@@ -259,7 +261,7 @@ int main_scfg(int argc, char *argv[])
 	if (nni > 0) {
 		int32_t k;
 		for (k = 0; k < nni; ++k) {
-			double diff = five_branch? pc_scfg_nni5(t, msa, md, max_iter_br) : pc_scfg_nni1(t, msa, md, max_iter_br);
+			double diff = five_branch? pc_scfg_nni5(t, msa, md, max_iter_br, eps) : pc_scfg_nni1(t, msa, md, max_iter_br, eps);
 			if (diff == 0.0) break;
 			for (i = 0; i < max_iter; ++i) {
 				loglk = pc_scfg_em_all(t, msa, md);
@@ -270,7 +272,7 @@ int main_scfg(int argc, char *argv[])
 	} else if (md_test != PC_MD_UNDEF) {
 		double *diff;
 		diff = kom_calloc(double, t->n_node);
-		pc_scfg_model_cmp(t, msa, md, md_test, max_iter_br, diff);
+		pc_scfg_model_cmp(t, msa, md, md_test, max_iter_br, eps, diff);
 		for (i = 0; i < t->n_node; ++i) {
 			const pc_node_t *v = t->node[i];
 			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
