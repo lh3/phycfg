@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 typedef struct {
-	double nni[3];
+	int32_t flag;
 	double *p; // transition matrix (m,m)
 	double *jc; // posterior joint count matrix (m,m)
 	double *h; // scaling factor (l)
@@ -51,8 +51,8 @@ typedef struct {
 typedef enum { PC_MD_UNDEF = -1, PC_MD_FULL = 0, PC_MD_REV, PC_MD_TN93 } pc_model_t;
 
 typedef struct {
-	double h, *alpha, *alpha2, *beta;
-} pc_scfg_buf_t;
+	double eps_nni_init; // eps used for the initial NNI round
+} pc_search_opt_t;
 
 #ifdef __cplusplus
 extern "C" {
