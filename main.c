@@ -10,6 +10,7 @@ int main_view(int argc, char *argv[]);
 int main_msaflt(int argc, char *argv[]);
 int main_reroot(int argc, char *argv[]);
 int main_scfg(int argc, char *argv[]);
+int main_search(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -19,6 +20,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "  msaflt     filter MSA columns by non-gap residue count\n");
 	fprintf(fp, "  reroot     reroot a tree (mid-point by default)\n");
 	fprintf(fp, "  scfg       SCFG-based phylogenetic analysis\n");
+	fprintf(fp, "  search     topology search\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -32,6 +34,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "msaflt") == 0) ret = main_msaflt(argc-1, argv+1);
 	else if (strcmp(argv[1], "reroot") == 0) ret = main_reroot(argc-1, argv+1);
 	else if (strcmp(argv[1], "scfg") == 0) ret = main_scfg(argc-1, argv+1);
+	else if (strcmp(argv[1], "search") == 0) ret = main_search(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", PC_VERSION);
 		return 0;
@@ -286,6 +289,55 @@ int main_scfg(int argc, char *argv[])
 	pc_tree_format(t, &str, &max_str);
 	puts(str);
 	free(str);
+
+	pc_tree_destroy(t);
+	pc_msa_destroy(msa);
+	return 0;
+}
+
+int main_search(int argc, char *argv[])
+{
+	ketopt_t o = KETOPT_INIT;
+	int32_t i, max_iter = 20, max_iter_br = 5;
+	pc_model_t md = PC_MD_FULL;
+	pc_search_opt_t opt;
+	double loglk;
+
+	pc_search_opt_init(&opt);
+	while (ketopt(&o, argc, argv, 1, "w:b:m:e:", 0) >= 0) {
+		if      (o.opt == 'w') max_iter = atoi(o.arg);
+		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
+		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
+		else if (o.opt == 'e') opt.eps_nni_init = atof(o.arg);
+	}
+	if (argc - o.ind < 2) {
+		fprintf(stderr, "Usage: phycfg search [options] <tree.nhx.gz> <aln.mfa.gz>\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -m STR    model: full, rev/GTR or TN93 [full]\n");
+		fprintf(stderr, "  -e FLOAT  epsilon [%g]\n", opt.eps_nni_init);
+		fprintf(stderr, "  -w INT    number of EM iterations for the whole tree [%d]\n", max_iter);
+		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", max_iter_br);
+		return 1;
+	}
+
+	pc_tree_t *t = pc_tree_read(argv[o.ind]);
+	if (t == NULL) return 1;
+	pc_msa_t *msa = pc_msa_read(argv[o.ind + 1]);
+	if (msa == NULL) { pc_tree_destroy(t); return 1; }
+
+	pc_msa_encode(msa, pc_msa_infer_rt(msa));
+	pc_tree_match_msa(t, msa);
+
+	pc_scfg_alloc(t, msa->len);
+	pc_scfg_init_par(t);
+	for (i = 0; i < max_iter; ++i) {
+		loglk = pc_scfg_em_all(t, msa, md);
+		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
+	}
+
+	pc_search_buf_t *sb = pc_search_buf_init(t, msa->len);
+	pc_search_prepare(sb, md, opt.eps_nni_init, max_iter_br);
+	pc_search_buf_destroy(sb);
 
 	pc_tree_destroy(t);
 	pc_msa_destroy(msa);

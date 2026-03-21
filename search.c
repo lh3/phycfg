@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include "pcpriv.h"
 #include "kavl-lite.h"
@@ -15,11 +16,11 @@ typedef struct pc_avlnode_s {
 #define avlcmp(a, b) ((a)->s != (b)->s? ((a)->s < (b)->s) - ((b)->s < (a)->s) : ((a)->id < (b)->id) - ((b)->id < (a)->id)) // descending
 KAVLL_INIT(my, pc_avlnode_t, head, avlcmp)
 
-typedef struct {
+struct pc_search_buf_s {
 	int32_t m, n_node, len;
 	pc_node_t **node;
 	pc_avlnode_t *avln;
-} pc_search_buf_t;
+};
 
 void pc_search_opt_init(pc_search_opt_t *opt)
 {
