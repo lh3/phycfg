@@ -95,6 +95,7 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 
 	vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
 	up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
+	pc_scfg_update5(sb->m, sb->len, up);
 
 	lk0 = xa->lk;
 	pc_search_update_avl(sb, xp, md, lk0, eps, max_iter_br);
@@ -139,6 +140,5 @@ void pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_
 		if (xa->s < 0.0) break;
 		fprintf(stderr, "XX\t%f\n", xa->s);
 		pc_search_update_tree(sb, xa, md, eps, max_iter_br);
-		break;
 	}
 }

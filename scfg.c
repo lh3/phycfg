@@ -336,29 +336,50 @@ static inline void pc_scfg_update_alpha2(int32_t m, const double *p, const doubl
 			alpha2[a] += p[a * m + b] * alpha[b];
 }
 
-static inline void pc_scfg_update_beta(int32_t m, double hu1, const double *pu, const double *vb, const double *w2, double *ub)
+static inline void pc_scfg_update_beta(int32_t m, double hu, const double *pu, const double *vb, const double *w2, double *ub)
 {
 	int32_t a, b;
+	double hu1 = 1.0 / hu;
 	for (b = 0; b < m; ++b) {
 		for (a = 0, ub[b] = 0.0; a < m; ++a)
 			ub[b] += vb[a] * w2[a] * pu[a * m + b];
 		ub[b] *= hu1;
 	}
 }
-/*
+
 double pc_scfg_update5(int32_t m, int32_t len, pc_node_t *up)
 {
 	double loglk = 0.0;
-	int32_t l;
+	int32_t l, a;
 	pc_node_t *vp = up->parent, *wp, *xp, *yp;
 	assert(vp != 0);
 	wp = vp->child[(vp->child[0] == up)];
 	xp = up->child[0], yp = up->child[1];
 	for (l = 0; l < len; ++l) {
-		double s, hu1 = 1.0 / up->q->h[l];
+		double *x2 = &xp->q->alpha2[l * m], *y2 = &yp->q->alpha2[l * m], *w2 = &wp->q->alpha2[l * m], *u2 = &up->q->alpha2[l * m];
+		double *vb = &vp->q->beta[l * m], *ub = &up->q->beta[l * m], *ua = &up->q->alpha[l * m], *va = &vp->q->alpha[l * m], s;
+		pc_scfg_update_alpha2(m, xp->q->p, &xp->q->alpha[l * m], x2);
+		pc_scfg_update_alpha2(m, yp->q->p, &yp->q->alpha[l * m], y2);
+		pc_scfg_update_alpha2(m, wp->q->p, &wp->q->alpha[l * m], w2);
+		for (a = 0, s = 1.0 / up->q->h[l]; a < m; ++a) ua[a] = x2[a] * y2[a] * s; // alpha~(u,a)
+		pc_scfg_update_alpha2(m, up->q->p, ua, u2);
+		for (a = 0, s = 1.0 / vp->q->h[l]; a < m; ++a) va[a] = u2[a] * w2[a] * s; // alpha~(v,a)
+		if (vp->parent != 0) { // if vp is not the root, update alpha2~(v,a) and beta~(v,a)
+			const pc_node_t *pp = vp->parent, *zp = pp->child[(pp->child[0] == vp)];
+			pc_scfg_update_alpha2(m, vp->q->p, va, &vp->q->alpha2[l * m]); // alpha2~(v,a)
+			pc_scfg_update_beta(m, vp->q->h[l], vp->q->p, &pp->q->beta[l * m], &zp->q->alpha2[l * m], vb); // beta~(v,b)
+		}
+		pc_scfg_update_beta(m, up->q->h[l], up->q->p, vb, w2, ub); // beta~(u,b)
+		pc_scfg_update_beta(m, wp->q->h[l], wp->q->p, vb, u2, &wp->q->beta[l * m]); // beta~(w,b)
+		pc_scfg_update_beta(m, xp->q->h[l], xp->q->p, ub, y2, &xp->q->beta[l * m]); // beta~(x,b)
+		pc_scfg_update_beta(m, yp->q->h[l], yp->q->p, ub, x2, &yp->q->beta[l * m]); // beta~(y,b)
+		for (a = 0, s = 0.0; a < m; ++a) s += ua[a] * ub[a];
+		s *= up->q->h[l];
+		loglk += log(s);
 	}
+	return loglk;
 }
-*/
+
 double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double eps, double *q)
 { // topology: (((x,y)u,w)v,z)p
 	int32_t i, l, a, b, m2 = m * m;
@@ -378,21 +399,21 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 		memset(xc, 0, sizeof(double) * m2 * 5); // clear all counts as they are allocated together
 		for (l = 0, loglk = 0.0; l < len; ++l) {
 			const double *xa = &xp->q->alpha[l * m], *ya = &yp->q->alpha[l * m], *wa = &wp->q->alpha[l * m]; // not affected
-			double s, hu1 = 1.0 / up->q->h[l]; // 1/h(u), the scaling factor at u
+			double s; // 1/h(u), the scaling factor at u
 			pc_scfg_update_alpha2(m, xq, xa, x2); // alpha2~(x,a)
 			pc_scfg_update_alpha2(m, yq, ya, y2); // alpha2~(y,a)
 			pc_scfg_update_alpha2(m, wq, wa, w2); // alpha2~(w,a)
-			for (a = 0; a < m; ++a) ua[a] = x2[a] * y2[a] * hu1; // alpha~(u,a)
+			for (a = 0, s = 1.0 / up->q->h[l]; a < m; ++a) ua[a] = x2[a] * y2[a] * s; // alpha~(u,a)
 			pc_scfg_update_alpha2(m, uq, ua, u2); // alpha2~(u,a)
 			if (vp->parent != 0) { // if vp is not the root
 				const pc_node_t *pp = vp->parent, *zp = pp->child[(pp->child[0] == vp)];
-				const double hv1 = 1.0 / vp->q->h[l], *pb = &pp->q->beta[l * m], *z2 = &zp->q->alpha2[l * m];
-				for (a = 0; a < m; ++a) va[a] = u2[a] * w2[a] * hv1; // alpha~(v,a)
-				pc_scfg_update_beta(m, hv1, vq, pb, z2, vb); // beta~(v,b)
+				const double *pb = &pp->q->beta[l * m], *z2 = &zp->q->alpha2[l * m];
+				for (a = 0, s = 1.0 / vp->q->h[l]; a < m; ++a) va[a] = u2[a] * w2[a] * s; // alpha~(v,a)
+				pc_scfg_update_beta(m, vp->q->h[l], vq, pb, z2, vb); // beta~(v,b)
 			} else {
 				vb = &vp->q->beta[l * m];
 			}
-			pc_scfg_update_beta(m, hu1, uq, vb, w2, ub); // beta~(u,b)
+			pc_scfg_update_beta(m, up->q->h[l], uq, vb, w2, ub); // beta~(u,b)
 			for (b = 0, s = 0.0; b < m; ++b) s += ua[b] * ub[b];
 			s *= up->q->h[l];
 			loglk += log(s);
