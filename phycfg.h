@@ -137,16 +137,17 @@ double pc_model_BIC(pc_model_t md0, pc_model_t md1, int32_t m, int32_t len, doub
 // estimate branch lengths; only TN93 is supported for now
 void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md);
 
-void pc_search_opt_init(pc_search_opt_t *opt);
-pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len);
-void pc_search_buf_destroy(pc_search_buf_t *sb);
-void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br);
-
 void pc_scfg_alloc(pc_tree_t *t, int32_t len);
 void pc_scfg_init_par(pc_tree_t *t);
 double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct);
 double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br, double eps);
 double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br, double eps);
+
+void pc_search_opt_init(pc_search_opt_t *opt);
+pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len);
+void pc_search_buf_destroy(pc_search_buf_t *sb);
+void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br);
+void pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br);
 
 #ifdef __cplusplus
 }

@@ -43,7 +43,7 @@ pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len)
 	sb->avln = kom_calloc(pc_avln_t*, sb->n_node);
 	for (u = 0; u < sb->n_node; ++u) {
 		sb->node[u] = t->node[u];
-		sb->avln[u] = (pc_avln_t*)calloc(1, sizeof(pc_avln_t) + sizeof(double) * 5);
+		sb->avln[u] = (pc_avln_t*)calloc(1, sizeof(pc_avln_t) + sizeof(double) * 5 * t->m * t->m);
 		sb->avln[t->node[u]->ftime]->p = t->node[u];
 	}
 	return sb;
@@ -94,6 +94,7 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 	vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
 	up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
 
+	pc_search_update_avl(sb, xp, md, xa->lk, eps, max_iter_br);
 	if (xp->n_child == 2) {
 		pc_search_update_avl(sb, xp->child[0], md, xa->lk, eps, max_iter_br);
 		pc_search_update_avl(sb, xp->child[1], md, xa->lk, eps, max_iter_br);
@@ -128,5 +129,13 @@ void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t m
 void pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br)
 {
 	for (;;) {
+		pc_avl_itr_t itr;
+		const pc_avln_t *xa;
+		pc_avl_itr_first(sb->root, &itr);
+		xa = kavll_at(&itr);
+		if (xa->s < 0.0) break;
+		fprintf(stderr, "XX\t%f\n", xa->s);
+		pc_search_update_tree(sb, xa, md, eps, max_iter_br);
+		break;
 	}
 }

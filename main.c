@@ -216,7 +216,7 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 100, max_iter_br = 50, nni = 0, skip_dist = 0, max_str = 0, five_branch = 0;
+	int32_t i, max_iter = 20, max_iter_br = 10, nni = 0, skip_dist = 0, max_str = 0, five_branch = 0;
 	pc_model_t md = PC_MD_FULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
 	double loglk, eps = 0.001;
 	char *str = 0;
@@ -337,7 +337,13 @@ int main_search(int argc, char *argv[])
 
 	pc_search_buf_t *sb = pc_search_buf_init(t, msa->len);
 	pc_search_prepare(sb, md, opt.eps_nni_init, max_iter_br);
+	pc_search_nni_greedy(sb, md, opt.eps_nni_init, max_iter_br);
 	pc_search_buf_destroy(sb);
+
+	for (i = 0; i < max_iter; ++i) {
+		loglk = pc_scfg_em_all(t, msa, md);
+		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
+	}
 
 	pc_tree_destroy(t);
 	pc_msa_destroy(msa);
