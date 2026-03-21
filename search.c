@@ -8,34 +8,23 @@
 
 typedef struct pc_avlnode_s {
 	double s;
-	uint64_t id;
 	pc_node_t *p;
 	KAVLL_HEAD(struct pc_avlnode_s) head;
 } pc_avlnode_t;
 
-#define avlcmp(a, b) ((a)->s != (b)->s? ((a)->s < (b)->s) - ((b)->s < (a)->s) : ((a)->id < (b)->id) - ((b)->id < (a)->id)) // descending
-KAVLL_INIT(my, pc_avlnode_t, head, avlcmp)
+#define avlcmp(a, b) ((a)->s != (b)->s? ((a)->s < (b)->s) - ((b)->s < (a)->s) : ((b)->p < (a)->p) - ((a)->p < (b)->p)) // descending in s
+KAVLL_INIT(pc_avl, pc_avlnode_t, head, avlcmp)
 
 struct pc_search_buf_s {
 	int32_t m, n_node, len;
 	pc_node_t **node;
-	pc_avlnode_t *avln;
+	pc_avlnode_t *avln, *root;
 };
 
 void pc_search_opt_init(pc_search_opt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
 	opt->eps_nni_init = 0.001;
-}
-
-static inline uint64_t pc_hash64(uint64_t x) // identical to kh_hash_uint64
-{
-	x ^= x >> 30;
-	x *= 0xbf58476d1ce4e5b9ULL;
-	x ^= x >> 27;
-	x *= 0x94d049bb133111ebULL;
-	x ^= x >> 31;
-	return x;
 }
 
 pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len)
@@ -83,7 +72,7 @@ void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t m
 		p = &sb->avln[u++];
 		p->s = lk - lk0;
 		p->p = xp;
-		p->id = pc_hash64((uint64_t)xp); // this works because pc_hash64 is bijective on 2**64-1
+		pc_avl_insert(&sb->root, p);
 	}
 	free(p5);
 }
