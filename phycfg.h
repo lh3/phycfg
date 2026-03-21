@@ -41,11 +41,14 @@ typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_CODON, PC_RT_AA } pc_restype_t;
 
 typedef struct {
 	int32_t len; // alignment length
+	int32_t len_uniq;
 	int32_t n_seq; // number of sequences
 	pc_restype_t rt; // residue type
 	int32_t m; // size of the alphabet
 	char **name; // sequence names
 	uint8_t **msa; // the msa of shape (len, n_seq)
+	uint8_t **uniq; // uniq columns, pointing to msa; shape: (len_uniq, n_seq)
+	int32_t *ucnt;
 } pc_msa_t;
 
 typedef enum { PC_MD_UNDEF = -1, PC_MD_FULL = 0, PC_MD_REV, PC_MD_TN93 } pc_model_t;

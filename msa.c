@@ -2,7 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include "kommon.h"
-#include "phycfg.h"
+#include "pcpriv.h"
+#define kh_packed
+#include "khashl.h"
 
 pc_restype_t pc_msa_infer_rt(const pc_msa_t *msa)
 {
@@ -65,6 +67,7 @@ void pc_msa_destroy(pc_msa_t *msa)
 	free(msa->name);
 	for (i = 0; i < msa->len; ++i) free(msa->msa[i]);
 	free(msa->msa);
+	free(msa->uniq); free(msa->ucnt);
 	free(msa);
 }
 
@@ -92,6 +95,7 @@ void pc_msa_filter(pc_msa_t *msa, int32_t min_cnt)
 	}
 	for (; i < msa->len; ++i) free(msa->msa[i]); /* trailing incomplete codon */
 	msa->len = w;
+	pc_msa_uniq(msa);
 }
 
 void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag) /* bit 0/1/2 = keep 1st/2nd/3rd codon position */
@@ -103,4 +107,48 @@ void pc_msa_select_codon(pc_msa_t *msa, int32_t codon_flag) /* bit 0/1/2 = keep 
 			else free(msa->msa[i + k]);
 	for (; i < msa->len; ++i) free(msa->msa[i]); /* trailing incomplete codon */
 	msa->len = w;
+	pc_msa_uniq(msa);
+}
+
+typedef struct {
+	int32_t n, idx;
+	uint8_t *s;
+} uniq_aux_t;
+
+static inline uint32_t uniq_hash(uniq_aux_t x)
+{
+	return kh_hash_bytes(x.n, x.s);
+}
+
+static inline int uniq_eq(uniq_aux_t a, uniq_aux_t b)
+{
+	return (memcmp(a.s, b.s, a.n) == 0);
+}
+
+KHASHL_CSET_INIT(KH_LOCAL, uniq_map_t, uniq_map, uniq_aux_t, uniq_hash, uniq_eq)
+
+void pc_msa_uniq(pc_msa_t *msa)
+{
+	int32_t l;
+	uniq_map_t *h;
+	free(msa->uniq); free(msa->ucnt);
+	msa->len_uniq = 0;
+	msa->uniq = kom_calloc(uint8_t*, msa->len);
+	msa->ucnt = kom_calloc(int32_t, msa->len);
+	h = uniq_map_init();
+	for (l = 0; l < msa->len; ++l) {
+		uniq_aux_t key = {msa->n_seq, 0, msa->msa[l]};
+		khint_t bucket;
+		int absent;
+		bucket = uniq_map_put(h, key, &absent);
+		if (absent) {
+			kh_key(h, bucket).idx = msa->len_uniq;
+			msa->uniq[msa->len_uniq] = msa->msa[l];
+			msa->ucnt[msa->len_uniq] = 1;
+			++msa->len_uniq;
+		} else {
+			++msa->ucnt[kh_key(h, bucket).idx];
+		}
+	}
+	uniq_map_destroy(h);
 }

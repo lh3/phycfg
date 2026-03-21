@@ -36,12 +36,12 @@ depend:
 
 # DO NOT DELETE
 
-io.o: phycfg.h kommon.h kseq.h
+io.o: pcpriv.h phycfg.h kommon.h kseq.h
 knhx.o: knhx.h
 kommon.o: kommon.h
 main.o: kommon.h phycfg.h ketopt.h
 model.o: pcpriv.h phycfg.h kommon.h
-msa.o: kommon.h phycfg.h
+msa.o: kommon.h pcpriv.h phycfg.h khashl.h
 scfg.o: pcpriv.h phycfg.h kommon.h
 search.o: pcpriv.h phycfg.h kavl-lite.h kommon.h
 sfunc.o: pcpriv.h phycfg.h

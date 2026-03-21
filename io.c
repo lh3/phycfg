@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <zlib.h>
-#include "phycfg.h"
+#include "pcpriv.h"
 #include "kommon.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
@@ -72,6 +72,7 @@ pc_msa_t *pc_msa_read(const char *fn)
 		for (j = 0; j < n; ++j)
 			msa->msa[i][j] = (uint8_t)seq[j][i];
 	}
+	pc_msa_uniq(msa);
 
 end_msa_read:
 	if (name) {

@@ -4,6 +4,7 @@
 #include "kommon.h"
 #include "knhx.h"
 #include "pcpriv.h"
+#define kh_packed
 #include "khashl.h"
 KHASHL_MAP_INIT(KH_LOCAL, strmap_t, strmap, kh_cstr_t, int32_t, kh_hash_str, kh_eq_str)
 

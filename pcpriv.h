@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+// in msa.c
+void pc_msa_uniq(pc_msa_t *msa);
+
 // in scfg.c
 void pc_scfg_free(pc_tree_t *t);
 double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa);
