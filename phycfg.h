@@ -1,7 +1,7 @@
 #ifndef PHYCFG_H
 #define PHYCFG_H
 
-#define PC_VERSION "0.0-dirty-r118"
+#define PC_VERSION "0.0-dirty-r127"
 
 #include <stdint.h>
 
@@ -51,7 +51,10 @@ typedef struct {
 typedef enum { PC_MD_UNDEF = -1, PC_MD_FULL = 0, PC_MD_REV, PC_MD_TN93 } pc_model_t;
 
 typedef struct {
-	double eps_nni_init; // eps used for the initial NNI round
+	pc_model_t md;
+	int32_t max_iter_br;
+	int32_t max_iter_deep;
+	double eps;
 } pc_search_opt_t;
 
 typedef struct pc_search_buf_s pc_search_buf_t;
@@ -144,10 +147,7 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t max_iter_br, double eps);
 
 void pc_search_opt_init(pc_search_opt_t *opt);
-pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len);
-void pc_search_buf_destroy(pc_search_buf_t *sb);
-void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br);
-void pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br);
+void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt);
 
 #ifdef __cplusplus
 }

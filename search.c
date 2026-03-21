@@ -28,7 +28,10 @@ struct pc_search_buf_s {
 void pc_search_opt_init(pc_search_opt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
-	opt->eps_nni_init = 0.001;
+	opt->md = PC_MD_FULL;
+	opt->eps = 0.001;
+	opt->max_iter_br = 10;
+	opt->max_iter_deep = 25;
 }
 
 pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len)
@@ -68,7 +71,7 @@ static pc_avln_t *pc_search_update_avl(pc_search_buf_t *sb, const pc_node_t *xp,
 		vp = up->parent, wp = vp->child[(vp->child[0] == up)];
 		xa->lk = pc_scfg_em5(sb->m, sb->len, md, wp, yp, up, xp, vp, max_iter_br, eps, xa->p5);
 		xa->s = xa->lk - lk0;
-		fprintf(stderr, "YY\t%d\t%f\t%f\n", xp->ftime, xa->s, lk0);
+		//fprintf(stderr, "YY\t%d\t%f\t%f\n", xp->ftime, xa->s, lk0);
 	} else {
 		xa->s = xa->lk = PC_NEG_INF;
 	}
@@ -138,7 +141,31 @@ void pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_
 		pc_avl_itr_first(sb->root, &itr);
 		xa = kavll_at(&itr);
 		if (xa->s < 0.0) break;
-		fprintf(stderr, "XX\t%f\n", xa->s);
+		if (kom_verbose >= 4) fprintf(stderr, "NI\t%d\t%f\n", xa->p->ftime, xa->s);
 		pc_search_update_tree(sb, xa, md, eps, max_iter_br);
 	}
+}
+
+void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
+{
+	int32_t i;
+	double lk0, lk;
+	for (i = 0, lk0 = PC_NEG_INF; i < opt->max_iter_deep; ++i) {
+		lk = pc_scfg_em_all(t, msa, opt->md);
+		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", i, lk);
+		if (lk - lk0 < opt->eps) break;
+		lk0 = lk;
+	}
+	pc_search_buf_t *sb = pc_search_buf_init(t, msa->len);
+	pc_search_prepare(sb, opt->md, opt->eps, opt->max_iter_br);
+	pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
+	pc_search_buf_destroy(sb);
+	for (i = 0, lk0 = PC_NEG_INF; i < opt->max_iter_deep; ++i) {
+		lk = pc_scfg_em_all(t, msa, opt->md);
+		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", i, lk);
+		if (lk - lk0 < opt->eps) break;
+		lk0 = lk;
+	}
+	if (msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON)
+		pc_model_dist(t, msa, PC_MD_TN93);
 }

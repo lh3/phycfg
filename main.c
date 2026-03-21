@@ -221,9 +221,9 @@ int main_scfg(int argc, char *argv[])
 	double loglk, eps = 0.001;
 	char *str = 0;
 
-	while (ketopt(&o, argc, argv, 1, "w:b:n:m:t:D5e:", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "d:b:n:m:t:D5e:", 0) >= 0) {
 		if (o.opt == 'n') nni = atoi(o.arg);
-		else if (o.opt == 'e') max_iter = atoi(o.arg);
+		else if (o.opt == 'd') max_iter = atoi(o.arg);
 		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
 		else if (o.opt == 't') md_test = pc_model_from_str(o.arg);
@@ -237,7 +237,7 @@ int main_scfg(int argc, char *argv[])
 		fprintf(stderr, "  -m STR    model: full, rev/GTR or TN93 [full]\n");
 		fprintf(stderr, "  -e FLOAT  epsilon [%g]\n", eps);
 		fprintf(stderr, "  -n INT    max NNI topology search rounds [%d]\n", nni);
-		fprintf(stderr, "  -w INT    number of EM iterations for the whole tree [%d]\n", max_iter);
+		fprintf(stderr, "  -d INT    number of EM iterations for the whole tree [%d]\n", max_iter);
 		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", max_iter_br);
 		fprintf(stderr, "  -t STR    test model; if set, use this model for initial EM []\n");
 		fprintf(stderr, "  -D        don't recalculate branch lengths for DNA sequences\n");
@@ -297,26 +297,29 @@ int main_scfg(int argc, char *argv[])
 
 int main_search(int argc, char *argv[])
 {
+	extern int kom_verbose;
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 20, max_iter_br = 5;
-	pc_model_t md = PC_MD_FULL;
 	pc_search_opt_t opt;
-	double loglk;
+	char *str = NULL;
+	int32_t max = 0;
 
+	kom_verbose = 4;
 	pc_search_opt_init(&opt);
-	while (ketopt(&o, argc, argv, 1, "w:b:m:e:", 0) >= 0) {
-		if      (o.opt == 'w') max_iter = atoi(o.arg);
-		else if (o.opt == 'b') max_iter_br = atoi(o.arg);
-		else if (o.opt == 'm') md = pc_model_from_str(o.arg);
-		else if (o.opt == 'e') opt.eps_nni_init = atof(o.arg);
+	while (ketopt(&o, argc, argv, 1, "d:b:m:e:v:", 0) >= 0) {
+		if      (o.opt == 'd') opt.max_iter_deep = atoi(o.arg);
+		else if (o.opt == 'b') opt.max_iter_br = atoi(o.arg);
+		else if (o.opt == 'm') opt.md = pc_model_from_str(o.arg);
+		else if (o.opt == 'e') opt.eps = atof(o.arg);
+		else if (o.opt == 'v') kom_verbose = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg search [options] <tree.nhx.gz> <aln.mfa.gz>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -m STR    model: full, rev/GTR or TN93 [full]\n");
-		fprintf(stderr, "  -e FLOAT  epsilon [%g]\n", opt.eps_nni_init);
-		fprintf(stderr, "  -w INT    number of EM iterations for the whole tree [%d]\n", max_iter);
-		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", max_iter_br);
+		fprintf(stderr, "  -e FLOAT  epsilon [%g]\n", opt.eps);
+		fprintf(stderr, "  -d INT    number of EM iterations for the whole tree [%d]\n", opt.max_iter_deep);
+		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", opt.max_iter_br);
+		fprintf(stderr, "  -v INT    verbose level [%d]\n", kom_verbose);
 		return 1;
 	}
 
@@ -327,25 +330,16 @@ int main_search(int argc, char *argv[])
 
 	pc_msa_encode(msa, pc_msa_infer_rt(msa));
 	pc_tree_match_msa(t, msa);
-
 	pc_scfg_alloc(t, msa->len);
 	pc_scfg_init_par(t);
-	for (i = 0; i < max_iter; ++i) {
-		loglk = pc_scfg_em_all(t, msa, md);
-		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
-	}
 
-	pc_search_buf_t *sb = pc_search_buf_init(t, msa->len);
-	pc_search_prepare(sb, md, opt.eps_nni_init, max_iter_br);
-	pc_search_nni_greedy(sb, md, opt.eps_nni_init, max_iter_br);
-	pc_search_buf_destroy(sb);
+	pc_search(t, msa, &opt);
 
-	for (i = 0; i < max_iter; ++i) {
-		loglk = pc_scfg_em_all(t, msa, md);
-		fprintf(stderr, "LK\t%d\t%.6f\n", i, loglk);
-	}
+	pc_tree_format(t, &str, &max);
+	puts(str);
+	free(str);
 
-	pc_tree_destroy(t);
 	pc_msa_destroy(msa);
+	pc_tree_destroy(t);
 	return 0;
 }
