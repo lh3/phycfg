@@ -133,36 +133,47 @@ void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t m
 		pc_search_update_avl(sb, sb->node[x], md, lk0, eps, max_iter_br);
 }
 
-void pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br)
+int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br)
 {
-	for (;;) {
+	int32_t n_nni = 0;
+	while (1) {
 		pc_avl_itr_t itr;
 		const pc_avln_t *xa;
 		pc_avl_itr_first(sb->root, &itr);
 		xa = kavll_at(&itr);
 		if (xa->s < 0.0) break;
+		++n_nni;
 		if (kom_verbose >= 4) fprintf(stderr, "NI\t%d\t%f\n", xa->p->ftime, xa->s);
 		pc_search_update_tree(sb, xa, md, eps, max_iter_br);
 	}
+	return n_nni;
 }
 
 void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 {
-	int32_t i;
+	int32_t k;
 	double lk0, lk;
-	for (i = 0, lk0 = PC_NEG_INF; i < opt->max_iter_deep; ++i) {
+	pc_search_buf_t *sb;
+	for (k = 0, lk0 = PC_NEG_INF; k < opt->max_iter_deep; ++k) {
 		lk = pc_scfg_em_all(t, msa, opt->md);
-		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", i, lk);
+		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", k, lk);
 		if (lk - lk0 < opt->eps) break;
 		lk0 = lk;
 	}
-	pc_search_buf_t *sb = pc_search_buf_init(t, msa->len);
-	pc_search_prepare(sb, opt->md, opt->eps, opt->max_iter_br);
-	pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
+	sb = pc_search_buf_init(t, msa->len);
+	for (k = 0; k < 3; ++k) {
+		int32_t i, n_nni;
+		pc_search_prepare(sb, opt->md, opt->eps, opt->max_iter_br);
+		n_nni = pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
+		if (n_nni == 0) break;
+		for (i = 0; i < opt->max_iter_br; ++i)
+			lk = pc_scfg_em_all(t, msa, opt->md);
+		if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%f\n", i, lk);
+	}
 	pc_search_buf_destroy(sb);
-	for (i = 0, lk0 = PC_NEG_INF; i < opt->max_iter_deep; ++i) {
+	for (k = 0, lk0 = PC_NEG_INF; k < opt->max_iter_deep; ++k) {
 		lk = pc_scfg_em_all(t, msa, opt->md);
-		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", i, lk);
+		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", k, lk);
 		if (lk - lk0 < opt->eps) break;
 		lk0 = lk;
 	}

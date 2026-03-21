@@ -216,7 +216,7 @@ int main_reroot(int argc, char *argv[])
 int main_scfg(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
-	int32_t i, max_iter = 20, max_iter_br = 10, nni = 0, skip_dist = 0, max_str = 0, five_branch = 0;
+	int32_t i, max_iter = 25, max_iter_br = 10, nni = 0, skip_dist = 0, max_str = 0, five_branch = 0;
 	pc_model_t md = PC_MD_FULL, md_test = PC_MD_UNDEF, md_EM = PC_MD_UNDEF;
 	double loglk, eps = 0.001;
 	char *str = 0;
