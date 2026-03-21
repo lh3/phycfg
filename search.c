@@ -68,6 +68,7 @@ static pc_avln_t *pc_search_update_avl(pc_search_buf_t *sb, const pc_node_t *xp,
 		vp = up->parent, wp = vp->child[(vp->child[0] == up)];
 		xa->lk = pc_scfg_em5(sb->m, sb->len, md, wp, yp, up, xp, vp, max_iter_br, eps, xa->p5);
 		xa->s = xa->lk - lk0;
+		fprintf(stderr, "YY\t%d\t%f\t%f\n", xp->ftime, xa->s, lk0);
 	} else {
 		xa->s = xa->lk = PC_NEG_INF;
 	}
@@ -79,6 +80,7 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 {
 	int32_t m2 = sb->m * sb->m;
 	pc_node_t *xp = xa->p, *yp, *up, *wp, *vp;
+	double lk0;
 
 	assert(xp->parent != 0 && xp->parent->parent != 0);
 	up = xp->parent, yp = up->child[(up->child[0] == xp)];
@@ -94,18 +96,19 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 	vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
 	up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
 
-	pc_search_update_avl(sb, xp, md, xa->lk, eps, max_iter_br);
+	lk0 = xa->lk;
+	pc_search_update_avl(sb, xp, md, lk0, eps, max_iter_br);
 	if (xp->n_child == 2) {
-		pc_search_update_avl(sb, xp->child[0], md, xa->lk, eps, max_iter_br);
-		pc_search_update_avl(sb, xp->child[1], md, xa->lk, eps, max_iter_br);
+		pc_search_update_avl(sb, xp->child[0], md, lk0, eps, max_iter_br);
+		pc_search_update_avl(sb, xp->child[1], md, lk0, eps, max_iter_br);
 	}
 	if (yp->n_child == 2) {
-		pc_search_update_avl(sb, yp->child[0], md, xa->lk, eps, max_iter_br);
-		pc_search_update_avl(sb, yp->child[1], md, xa->lk, eps, max_iter_br);
+		pc_search_update_avl(sb, yp->child[0], md, lk0, eps, max_iter_br);
+		pc_search_update_avl(sb, yp->child[1], md, lk0, eps, max_iter_br);
 	}
 	if (wp->n_child == 2) {
-		pc_search_update_avl(sb, wp->child[0], md, xa->lk, eps, max_iter_br);
-		pc_search_update_avl(sb, wp->child[1], md, xa->lk, eps, max_iter_br);
+		pc_search_update_avl(sb, wp->child[0], md, lk0, eps, max_iter_br);
+		pc_search_update_avl(sb, wp->child[1], md, lk0, eps, max_iter_br);
 	}
 }
 
