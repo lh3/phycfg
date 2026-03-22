@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Git Rules
 
 - **Never stage or commit untracked files** unless explicitly instructed by the user.
+- **Never commit or push** unless explicitly instructed by the user.
 
 ## Build Commands
 
@@ -28,18 +29,19 @@ Input files are gzip-compressed — phycfg reads gzip'd formats directly (do not
 
 ### Command dispatch
 
-`main.c` is the entry point and contains `main_view()`, `main_msaflt()`, `main_reroot()`, and `main_scfg()`. It dispatches subcommands:
+`main.c` is the entry point and contains `main_view()`, `main_msaflt()`, `main_reroot()`, `main_scfg()`, and `main_search()`. It dispatches subcommands:
 - `view` → `main_view()` at the bottom of `main.c`; accepts `-l STR` (comma/space-separated leaf names or `@file`) to extract and print the minimal induced subtree over those leaves
 - `msaflt` → `main_msaflt()`; reads a gzip'd FASTA MSA, infers residue type, encodes, filters columns, and writes decoded FASTA to stdout; accepts `-m INT` (min non-gap/non-ambiguous residues per column, default 1) and `-1`/`-2`/`-3` to select codon positions
 - `reroot` → `main_reroot()`; reroots a tree and writes Newick to stdout; by default uses global midpoint rooting; with `-l STR` roots at the midpoint of the branch leading to the LCA of the listed leaves
-- `scfg` → `main_scfg()` in `scfg.c`; reads tree and MSA, encodes, matches sequences to leaves; with `-n INT` runs EM then up to INT rounds of NNI topology search, prints final Newick to stdout; `-m INT` sets EM iterations per round (default 100), `-b INT` sets branch EM iterations (default 50)
+- `scfg` → `main_scfg()` in `main.c`; reads tree and MSA, encodes, matches sequences to leaves; with `-n INT` runs EM then up to INT rounds of NNI topology search, prints final Newick to stdout; `-d INT` sets EM iterations for the whole tree (default 25), `-b INT` sets branch EM iterations (default 10)
+- `search` → `main_search()` in `main.c`; reads tree and MSA, runs EM + greedy NNI topology search via `pc_search()`, prints final Newick to stdout; `-d INT` whole-tree EM iterations (default 25), `-b INT` branch EM iterations (default 10), `-m STR` model, `-e FLOAT` epsilon
 - `version` → prints `PC_VERSION` from `phycfg.h`
 
 When `kom_verbose >= 3` and the command succeeds, timing/resource info is printed to stderr.
 
 ### Library (`libphycfg.a`)
 
-Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o`. Linked with `main.o`.
+Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o search.o`. Linked with `main.o`.
 
 - **`kommon.c`/`kommon.h`** — general-purpose utilities:
   - Memory macros: `kom_malloc`, `kom_calloc`, `kom_realloc`, `kom_grow` (dynamic array growth with 1.5× expansion)
@@ -73,16 +75,17 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
 
 - **`io.c`** — file I/O (uses `kseq.h` via `KSEQ_INIT(gzFile, gzread)`):
   - `pc_tree_read(fn)` — read a gzip-compressed NHX file; returns `pc_tree_t*` or NULL
-  - `pc_msa_read(fn)` — read a gzip-compressed FASTA MSA; validates uniform length; stores plain ASCII in `msa->msa[pos][seq]` layout; returns `pc_msa_t*` or NULL
+  - `pc_msa_read(fn)` — read a gzip-compressed FASTA MSA; validates uniform length; stores plain ASCII in `msa->msa[pos][seq]` layout; calls `pc_msa_uniq` before returning; returns `pc_msa_t*` or NULL
   - `pc_list_read(o, &n)` — parse comma/space-separated names from string, or from `@file`; returns `char**`
 
-- **`msa.c`** — MSA operations (declared in `phycfg.h`):
+- **`msa.c`** — MSA operations (declared in `phycfg.h`; `pc_msa_uniq` in `pcpriv.h`):
   - `pc_msa_infer_rt(msa)` — infer `pc_restype_t` from letter frequencies: ≥50% A/C/G/T → `PC_RT_NT`; ≥80% standard AA letters → `PC_RT_AA`; else `PC_RT_UNKNOWN`
   - `pc_msa_encode(msa, rt)` — set `msa->rt = rt` and `msa->m`; encode ASCII in-place using `kom_nt4_table` (NT) or `kom_aa20_table` (AA); `-`/`.` → `PC_GAP_NT`/`PC_GAP_AA`; if `rt == PC_RT_UNKNOWN`, does nothing
-  - `pc_msa_filter(msa, min_cnt)` — in-place column filter (requires prior encode); keeps columns where at least `min_cnt` sequences have a value `< msa->m`; frees dropped rows
-  - `pc_msa_select_codon(msa, codon_flag)` — keep only specified codon positions; `codon_flag` bits 0/1/2 select 1st/2nd/3rd positions; operates on encoded CDS (`PC_RT_CODON`) MSA
-  - `pc_msa_destroy(msa)` — free all name strings, row arrays, and the struct itself; NULL-safe
-  - `pc_msa_t` fields: `len` (alignment length / number of columns), `n_seq`, `rt`, `m` (alphabet size: 4 NT / 20 AA / 256 unknown), `name` (sequence names), `msa` (`uint8_t**`, position-major: `msa[pos][seq]`)
+  - `pc_msa_filter(msa, min_cnt)` — in-place column filter (requires prior encode); keeps columns where at least `min_cnt` sequences have a value `< msa->m`; frees dropped rows; calls `pc_msa_uniq` at the end
+  - `pc_msa_select_codon(msa, codon_flag)` — keep only specified codon positions; `codon_flag` bits 0/1/2 select 1st/2nd/3rd positions; operates on encoded CDS (`PC_RT_CODON`) MSA; calls `pc_msa_uniq` at the end
+  - `pc_msa_uniq(msa)` — (in `pcpriv.h`) deduplicate columns of `msa->msa[0..len_orig-1]` into `msa->uniq[0..len_uniq-1]` (shallow pointers into `msa->msa`) and fill `msa->ucnt[i]` with per-unique-column counts; uses a hash set for O(n) deduplication; frees previous `uniq`/`ucnt` before rebuilding
+  - `pc_msa_destroy(msa)` — free all name strings, row arrays, `uniq`, `ucnt`, and the struct itself; NULL-safe
+  - `pc_msa_t` fields: `len_orig` (total alignment length / number of columns in `msa->msa`), `len_uniq` (number of distinct columns), `n_seq`, `rt`, `m` (alphabet size: 4 NT / 20 AA / 256 unknown), `name` (sequence names), `msa` (`uint8_t**`, position-major: `msa[pos][seq]`), `uniq` (deduplicated column pointers into `msa`), `ucnt` (count of each unique column)
   - Gap/ambiguous constants: `PC_GAP_NT`=5, `PC_GAP_AA`=23 (defined in `phycfg.h`)
 
 - **`model.c`** — substitution model constraints and distance estimation (declared in `phycfg.h`):
@@ -95,22 +98,33 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
   - `pc_model_dist_TN93(cnt, &kR, &kY)` — TN93 branch length from 4×4 joint count matrix; writes κ_R and κ_Y; returns expected substitutions per site
   - `pc_model_dist(t, msa, md)` — calls `pc_scfg_alloc` + `pc_scfg_post_cnt` to fill `node->q->jc`, then `pc_model_dist_TN93` per non-root branch; root set to 0.0; asserts `md == PC_MD_TN93`
 
-- **`scfg.c`** — SCFG algorithms and the `scfg` subcommand:
+- **`scfg.c`** — SCFG algorithms:
   - **Data layout**: `pc_scfg_data_t` (defined in `phycfg.h`) holds per-node arrays for all positions:
     `p[m×m]` (transition matrix), `jc[m×m]` (posterior joint count), `h[len]` (scaling factor),
-    `alpha[len×m]` (α̃), `alpha2[len×m]` (α̃'), `beta[len×m]` (β̃); all in one `calloc` block via flexible array `x[]`
-  - `pc_scfg_alloc(t, len)` — allocates `pc_scfg_data_t` at `node->q` for all nodes (skips already-allocated)
+    `alpha[len×m]` (α̃), `alpha2[len×m]` (α̃'), `beta[len×m]` (β̃); all in one `calloc` block via flexible array `x[]`;
+    `len` here is `msa->len_uniq` (unique columns only)
+  - `pc_scfg_alloc(t, len)` — allocates `pc_scfg_data_t` at `node->q` for all nodes (skips already-allocated); pass `msa->len_uniq`
   - `pc_scfg_free(t)` — frees `node->q` for all nodes (in `pcpriv.h`)
   - `pc_scfg_init_par(t)` — init `node->q->p`: non-root gets JC matrix from `node->d` (falls back to 1e-3 if `d ≤ 0`); root gets flat `1/m` prior
-  - `pc_scfg_inside(t, msa, pos)` — inside pass for column `pos`; writes `q->alpha[pos*m]`, `q->alpha2[pos*m]`, `q->h[pos]`; returns log P(column)
+  - `pc_scfg_inside(t, msa, pos)` — inside pass for unique-column index `pos`; reads leaf residues from `msa->uniq[pos]`; writes `q->alpha[pos*m]`, `q->alpha2[pos*m]`, `q->h[pos]`; returns log P(column)
   - `pc_scfg_outside(t, pos)` — outside pass (after inside); writes `q->beta[pos*m]`; β̃(root,a)=q(a)/h_root; β̃(u,b)=(1/h_u)·Σ_a p(b|a)·β̃(par,a)·∏_sib α̃'(sib,a)
-  - `pc_scfg_post_cnt(t, msa)` — E-step over all columns: zeros `q->jc`, accumulates normalised posterior branch counts; returns total log likelihood (in `pcpriv.h`)
+  - `pc_scfg_post_cnt(t, msa)` — E-step over unique columns: zeros `q->jc`, accumulates posterior branch counts weighted by `msa->ucnt[i]`; returns total log likelihood (in `pcpriv.h`)
   - `pc_scfg_em_all(t, msa, ct)` — one EM round: `pc_scfg_post_cnt` then M-step via `pc_model_matrix` + row-normalise into `q->p`
-  - `pc_scfg_em1(m, len, ct, xp, yp, up, wp, vp, max_itr, p)` — 1-branch EM for topology `((x,y)u,w)v`; optimises `p[m×m]` for branch `u`; `xp=yp=NULL` for non-NNI case (uses stored `up->q->alpha`); stops at improvement < 1e-6
-  - `pc_scfg_nni1(t, msa, ct, max_iter_br)` — NNI with 1-branch EM; runs global inside/outside first; for each eligible internal non-root node evaluates original + 2 NNI rotations; applies best improving move via `pc_tree_rotate`; updates only `up->q->p`; returns log-likelihood improvement
-  - `pc_scfg_em5(m, len, ct, xp, yp, up, wp, vp, max_itr, q)` — 5-branch EM for topology `(((x,y)u,w)v,z)p`; `q[5×m×m]` for x/y/u/w/v; each iteration recomputes α̃'(x/y/w), α̃(u), α̃'(u), β̃(u) from stored α̃(x/y/w) and stored β̃(v) without re-running global inside/outside; v's branch is optimised only when `vp->parent != NULL` (v not root)
-  - `pc_scfg_nni5(t, msa, ct, max_iter_br)` — NNI with 5-branch EM; runs global inside/outside first; evaluates original + 2 NNI rotations per eligible node; on best move updates x/y/u/w matrices (remapped to post-rotation nodes) and v's matrix (if v has parent) via `pc_tree_rotate`
-  - `pc_scfg_model_cmp(t, msa, md0, md1, max_iter_br, diff)` — per-branch log-likelihood ratio `log(P(md0)/P(md1))`; writes to `diff[n_node]` (root entry = 0)
+  - `pc_scfg_em1(m, len, ucnt, ct, xp, yp, up, wp, vp, max_itr, eps, p)` — 1-branch EM for topology `((x,y)u,w)v`; optimises `p[m×m]` for branch `u`; `xp=yp=NULL` for non-NNI case (uses stored `up->q->alpha`); `ucnt` weights column contributions; stops at improvement < `eps`
+  - `pc_scfg_nni1(t, msa, ct, max_iter_br, eps)` — NNI with 1-branch EM; runs global inside/outside first; for each eligible internal non-root node evaluates original + 2 NNI rotations; applies best improving move via `pc_tree_rotate`; updates only `up->q->p`; returns log-likelihood improvement
+  - `pc_scfg_em5(m, len, ucnt, ct, xp, yp, up, wp, vp, max_itr, eps, q)` — 5-branch EM for topology `(((x,y)u,w)v,z)p`; `q[5×m×m]` for x/y/u/w/v; each iteration recomputes α̃'(x/y/w), α̃(u), α̃'(u), β̃(u) from stored α̃(x/y/w) and stored β̃(v) without re-running global inside/outside; v's branch is optimised only when `vp->parent != NULL` (v not root); `ucnt` weights column contributions
+  - `pc_scfg_update5(m, len, ucnt, up)` — (in `pcpriv.h`) recomputes α̃', α̃, β̃ for the 5 nodes around `up` (topology `((x,y)u,w)v`) in-place using their current `q->p` matrices, without running global inside/outside; used to update stored arrays after an NNI move; returns log likelihood
+  - `pc_scfg_nni5(t, msa, ct, max_iter_br, eps)` — NNI with 5-branch EM; runs global inside/outside first; evaluates original + 2 NNI rotations per eligible node; on best move updates x/y/u/w matrices (remapped to post-rotation nodes) and v's matrix (if v has parent) via `pc_tree_rotate`
+  - `pc_scfg_model_cmp(t, msa, md0, md1, max_iter_br, eps, diff)` — per-branch log-likelihood ratio `log(P(md0)/P(md1))`; writes to `diff[n_node]` (root entry = 0)
+
+- **`search.c`** — topology search infrastructure (declared in `phycfg.h` and `pcpriv.h`):
+  - `pc_search_opt_t` fields: `md` (substitution model), `max_iter_br` (branch EM iterations, default 10), `max_iter_deep` (whole-tree EM iterations, default 25), `eps` (convergence threshold, default 0.001)
+  - `pc_search_opt_init(opt)` — fill defaults into `pc_search_opt_t`
+  - `pc_search_buf_t` — opaque buffer holding per-node `pc_avln_t*` pointers (one per node); each `pc_avln_t` carries `s` (NNI gain = `lk - lk0`), `lk`, the node pointer `p`, and a flexible `p5[5×m×m]` array of optimised branch matrices; nodes are maintained in an AVL tree ordered by `s` descending for O(log n) best-move lookup
+  - `pc_search_buf_init(t, msa)` / `pc_search_buf_destroy(sb)` — allocate/free the search buffer (in `pcpriv.h`)
+  - `pc_search_prepare(sb, md, eps, max_iter_br)` — compute initial per-node NNI gains using `pc_scfg_em5`; inserts all nodes into the AVL tree (prerequisite: inside/outside already computed)
+  - `pc_search_nni_greedy(sb, md, eps, max_iter_br)` — greedily apply the best NNI move until no improving move remains; after each move calls `pc_scfg_update5` to refresh α̃/β̃ for affected nodes without global inside/outside, then re-evaluates neighbours; returns count of moves applied (in `pcpriv.h`)
+  - `pc_search(t, msa, opt)` — full topology search: EM convergence → greedy NNI rounds (up to 3) with inter-round EM → final EM convergence → TN93 branch length estimation for NT/codon data
 
 - **`sfunc.c`** — special functions (declared in `pcpriv.h`):
   - `kf_chi2_p(df, x)` — chi-square survival function P(X > x) for X ~ χ²(df); implemented via regularised incomplete gamma: `kf_gammaq(df/2, x/2)`
@@ -118,7 +132,7 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
 ### Third-party headers
 
 - **`kseq.h`** — macro-based streaming FASTA/Q + kstream parser from [klib](https://github.com/attractivechaos/klib) (MIT). Instantiated in `io.c` via `KSEQ_INIT(gzFile, gzread)`.
-- **`khashl.h`** — open-addressing hash table from klib (MIT). Used in `tree.c` for `pc_tree_mark_leaf`.
+- **`khashl.h`** — open-addressing hash table from klib (MIT). Used in `tree.c` for `pc_tree_mark_leaf` and in `msa.c` for `pc_msa_uniq` column deduplication.
 - **`ketopt.h`** — command-line option parser. Used in `main.c` and `scfg.c`.
 
 ## Test Data
