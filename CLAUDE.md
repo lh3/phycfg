@@ -69,7 +69,8 @@ Object files archived: `kommon.o knhx.o tree.o io.o msa.o model.o sfunc.o scfg.o
   - `pc_tree_mid_longest(t, &dist_to_mid)` — find node `p` whose incoming branch contains the diameter midpoint (O(n) post-order); writes distance from `p` to midpoint into `*dist_to_mid`; returns `p`'s ftime or -1
   - `pc_tree_rotate(t, xi)` — NNI rotation: given node x at ftime `xi`, transforms `((x,y)u,w)v` into `((w,y)u,x)v`; requires x's parent u and grandparent v to exist and v to be binary; calls `pc_tree_sync` on success; returns 0 on success, -1 if not possible
   - `pc_tree_reroot(t, nid, dist)` — place new root on the branch to node `nid` at distance `dist` from that node (pass `dist<0` for branch midpoint); then calls `pc_tree_sync`
-  - `pc_tree_clone(t)` — deep copy of tree including nodes, names, and `m`; if `node->q` is non-NULL, a new `pc_scfg_data_t` is allocated via `pc_scfg_data_new(m, -1)` (p matrix only; no alpha/beta/h arrays); caller must `pc_tree_destroy` the result
+  - `pc_tree_copy(src, dst)` — deep copy nodes from `src` into `dst`: frees all existing nodes in `dst` (q, name, node itself), then allocates fresh nodes copying ftime/seq_id/d/name/q (q via `pc_scfg_data_new(m,-1)`, p matrix only) and rewires parent/child pointers; does not allocate or free the `pc_tree_t` structs themselves
+  - `pc_tree_clone(t)` — allocate a new `pc_tree_t` and call `pc_tree_copy`; caller must `pc_tree_destroy` the result
   - `pc_tree_strip_iname(t)` — free and NULL the `name` field of all internal nodes (n_child > 0); used before formatting output to suppress bootstrap/label noise
   - `pc_tree_format(t, &s, &max)` — format tree to Newick; reusable-buffer API (pass `NULL`/`0` first call; `s` and `max` updated in place); returns string length; caller frees `*s`
   - `pc_tree_destroy(t)` — free all nodes and the `pc_tree_t` itself; does NOT free `node->q`; call `pc_scfg_free` first if needed

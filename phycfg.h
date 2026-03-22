@@ -74,6 +74,7 @@ extern "C" {
 pc_tree_t *pc_tree_parse(const char *str, char **en);
 
 void pc_tree_sync(pc_tree_t *t);
+void pc_tree_copy(const pc_tree_t *src, pc_tree_t *dst);
 pc_tree_t *pc_tree_clone(const pc_tree_t *t);
 void pc_tree_destroy(pc_tree_t *t);
 void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark);

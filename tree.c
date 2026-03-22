@@ -88,38 +88,52 @@ void pc_tree_sync(pc_tree_t *t)
 		t->node[i]->ftime = i;
 }
 
-pc_tree_t *pc_tree_clone(const pc_tree_t *t)
+void pc_tree_copy(const pc_tree_t *src, pc_tree_t *dst)
 {
 	int32_t i, k;
-	pc_tree_t *c;
-	pc_node_t **map;  /* map[i] = new node corresponding to t->node[i] */
+	pc_node_t **map;
 
-	c = kom_calloc(pc_tree_t, 1);
-	c->n_node = t->n_node;
-	map = c->node = kom_malloc(pc_node_t*, t->n_node);
+	/* Free existing nodes in dst */
+	if (dst->node) {
+		for (i = 0; i < dst->n_node; ++i) {
+			free(dst->node[i]->q);
+			free(dst->node[i]->name);
+			free(dst->node[i]);
+		}
+		free(dst->node);
+	}
+
+	dst->n_node = src->n_node;
+	dst->m = src->m;
+	map = dst->node = kom_malloc(pc_node_t*, src->n_node);
 
 	/* Allocate and copy each node's scalar fields */
-	for (i = 0; i < t->n_node; ++i) {
-		const pc_node_t *s = t->node[i];
+	for (i = 0; i < src->n_node; ++i) {
+		const pc_node_t *s = src->node[i];
 		pc_node_t *d = map[i] = pc_node_new(s->n_child);
 		d->ftime  = s->ftime;
 		d->seq_id = s->seq_id;
 		d->d      = s->d;
 		d->name   = s->name ? kom_strdup(s->name) : NULL;
-		d->q      = s->q? pc_scfg_data_new(t->m, -1) : NULL;
+		d->q      = s->q ? pc_scfg_data_new(src->m, -1) : NULL;
 	}
 
 	/* Wire up parent and child pointers using ftime as the map key */
-	for (i = 0; i < t->n_node; ++i) {
-		const pc_node_t *s = t->node[i];
+	for (i = 0; i < src->n_node; ++i) {
+		const pc_node_t *s = src->node[i];
 		pc_node_t *d = map[i];
 		d->parent = s->parent ? map[s->parent->ftime] : NULL;
 		for (k = 0; k < s->n_child; ++k)
 			d->child[k] = map[s->child[k]->ftime];
 	}
 
-	c->root = map[t->root->ftime];
-	c->m = t->m;
+	dst->root = map[src->root->ftime];
+}
+
+pc_tree_t *pc_tree_clone(const pc_tree_t *t)
+{
+	pc_tree_t *c = kom_calloc(pc_tree_t, 1);
+	pc_tree_copy(t, c);
 	return c;
 }
 
