@@ -30,12 +30,12 @@ void pc_search_opt_init(pc_search_opt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
 	opt->md = PC_MD_FULL;
-	opt->eps = 0.001;
-	opt->max_iter_br = 10;
+	opt->eps = 0.01;
+	opt->max_iter_br = 20;
 	opt->max_iter_deep = 25;
 }
 
-pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, const pc_msa_t *msa)
+pc_search_buf_t *pc_search_buf_alloc(pc_tree_t *t, const pc_msa_t *msa)
 {
 	int32_t u;
 	pc_search_buf_t *sb;
@@ -49,7 +49,6 @@ pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, const pc_msa_t *msa)
 	for (u = 0; u < sb->n_node; ++u) {
 		sb->node[u] = t->node[u];
 		sb->avln[u] = (pc_avln_t*)calloc(1, sizeof(pc_avln_t) + sizeof(double) * 5 * t->m * t->m);
-		sb->avln[t->node[u]->ftime]->p = t->node[u];
 	}
 	return sb;
 }
@@ -73,12 +72,31 @@ static pc_avln_t *pc_search_update_avl(pc_search_buf_t *sb, const pc_node_t *xp,
 		vp = up->parent, wp = vp->child[(vp->child[0] == up)];
 		xa->lk = pc_scfg_em5(sb->m, sb->len, sb->ucnt, md, wp, yp, up, xp, vp, max_iter_br, eps, xa->p5);
 		xa->s = xa->lk - lk0;
-		//fprintf(stderr, "YY\t%d\t%f\t%f\n", xp->ftime, xa->s, lk0);
+		//fprintf(stderr, "YY\t%d\t%f\t%f -> %f\n", xp->ftime, xa->s, lk0, xa->lk);
 	} else {
 		xa->s = xa->lk = PC_NEG_INF;
 	}
 	pc_avl_insert(&sb->root, xa);
 	return xa;
+}
+
+void pc_search_prepare(pc_tree_t *t, pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br)
+{ // prerequisite: inside-outside applied
+	int32_t u, x, l, a, m = sb->m;
+	double lk0;
+	for (u = 0; u < sb->n_node; ++u) {
+		sb->node[u] = t->node[u];
+		sb->avln[t->node[u]->ftime]->p = t->node[u];
+	}
+	for (l = 0, lk0 = 0.0; l < sb->len; ++l) {
+		double s = 0.0;
+		u = sb->n_node - 1; // the result should be the same regardless of the node
+		for (a = 0; a < m; ++a)
+			s += sb->node[u]->q->alpha[l * m + a] * sb->node[u]->q->beta[l * m + a];
+		lk0 += log(s * sb->node[u]->q->h[l]) * sb->ucnt[l];
+	}
+	for (x = 0, u = 0; x < sb->n_node; ++x)
+		pc_search_update_avl(sb, sb->node[x], md, lk0, eps, max_iter_br);
 }
 
 static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_model_t md, double eps, int32_t max_iter_br)
@@ -124,23 +142,6 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 	}
 }
 
-void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br)
-{ // prerequisite: inside-outside applied
-	int32_t u, x, l, a, m = sb->m;
-	double lk0;
-	for (u = 0; u < sb->n_node; ++u)
-		sb->node[u]->q->flag = 0;
-	for (l = 0, lk0 = 0.0; l < sb->len; ++l) {
-		double s = 0.0;
-		u = sb->n_node - 1; // the result should be the same regardless of the node
-		for (a = 0; a < m; ++a)
-			s += sb->node[u]->q->alpha[l * m + a] * sb->node[u]->q->beta[l * m + a];
-		lk0 += log(s * sb->node[u]->q->h[l]) * sb->ucnt[l];
-	}
-	for (x = 0, u = 0; x < sb->n_node; ++x)
-		pc_search_update_avl(sb, sb->node[x], md, lk0, eps, max_iter_br);
-}
-
 int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t max_iter_br)
 {
 	int32_t n_nni = 0;
@@ -168,12 +169,14 @@ void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 		if (lk - lk0 < opt->eps) break;
 		lk0 = lk;
 	}
-	sb = pc_search_buf_init(t, msa);
+	sb = pc_search_buf_alloc(t, msa);
 	for (k = 0; k < 3; ++k) {
 		int32_t i, n_nni;
-		pc_search_prepare(sb, opt->md, opt->eps, opt->max_iter_br);
+		if (kom_verbose >= 4) fprintf(stderr, "RD\t%d\n", k + 1);
+		pc_search_prepare(t, sb, opt->md, opt->eps, opt->max_iter_br);
 		n_nni = pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
 		if (n_nni == 0) break;
+		pc_tree_sync(t);
 		for (i = 0; i < opt->max_iter_br; ++i)
 			lk = pc_scfg_em_all(t, msa, opt->md);
 		if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%f\n", i, lk);

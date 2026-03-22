@@ -1,12 +1,11 @@
 #ifndef PHYCFG_H
 #define PHYCFG_H
 
-#define PC_VERSION "0.0-dirty-r131"
+#define PC_VERSION "0.0-dirty-r133"
 
 #include <stdint.h>
 
 typedef struct {
-	int32_t flag;
 	double *p; // transition matrix (m,m)
 	double *jc; // posterior joint count matrix (m,m)
 	double *h; // scaling factor (l)
