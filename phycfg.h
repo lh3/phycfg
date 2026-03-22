@@ -1,7 +1,7 @@
 #ifndef PHYCFG_H
 #define PHYCFG_H
 
-#define PC_VERSION "0.0-dirty-r128"
+#define PC_VERSION "0.0-dirty-r130"
 
 #include <stdint.h>
 
@@ -40,8 +40,8 @@ typedef enum { PC_RT_UNKNOWN, PC_RT_NT, PC_RT_CODON, PC_RT_AA } pc_restype_t;
 #define PC_GAP_AA 23
 
 typedef struct {
-	int32_t len; // alignment length
-	int32_t len_uniq;
+	int32_t len_orig; // alignment length
+	int32_t len_uniq; // unique alignment length
 	int32_t n_seq; // number of sequences
 	pc_restype_t rt; // residue type
 	int32_t m; // size of the alphabet

@@ -140,7 +140,7 @@ int main_msaflt(int argc, char *argv[])
 	int32_t i, j;
 	for (j = 0; j < msa->n_seq; ++j) {
 		printf(">%s\n", msa->name[j]);
-		for (i = 0; i < msa->len; ++i) {
+		for (i = 0; i < msa->len_orig; ++i) {
 			uint8_t v = msa->msa[i][j];
 			char ch;
 			if (rt == PC_RT_NT || rt == PC_RT_CODON)
@@ -253,7 +253,7 @@ int main_scfg(int argc, char *argv[])
 	assert(msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON); // only for nucleotide for now
 	pc_tree_match_msa(t, msa);
 
-	pc_scfg_alloc(t, msa->len);
+	pc_scfg_alloc(t, msa->len_uniq);
 	pc_scfg_init_par(t);
 	md_EM = md_test != PC_MD_UNDEF? md_test : md;
 	for (i = 0; i < max_iter; ++i) {
@@ -280,7 +280,7 @@ int main_scfg(int argc, char *argv[])
 			const pc_node_t *v = t->node[i];
 			fprintf(stderr, "CD\t%d\t%d\t%d\t%s\t%.6f\t%.2e\t%.2f\n", i, v->n_child, v->parent ? v->parent->ftime : -1,
 			        v->name && v->name[0] ? v->name : ".", diff[i], pc_model_lrt(md_test, md, t->m, diff[i]),
-					pc_model_BIC(md_test, md, t->m, msa->len, diff[i]));
+					pc_model_BIC(md_test, md, t->m, msa->len_orig, diff[i]));
 		}
 		free(diff);
 	}
@@ -330,7 +330,7 @@ int main_search(int argc, char *argv[])
 
 	pc_msa_encode(msa, pc_msa_infer_rt(msa));
 	pc_tree_match_msa(t, msa);
-	pc_scfg_alloc(t, msa->len);
+	pc_scfg_alloc(t, msa->len_uniq);
 	pc_scfg_init_par(t);
 
 	pc_search(t, msa, &opt);

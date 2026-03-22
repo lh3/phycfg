@@ -61,7 +61,7 @@ pc_msa_t *pc_msa_read(const char *fn)
 	}
 	msa = kom_calloc(pc_msa_t, 1);
 	msa->n_seq = n;
-	msa->len = n_pos;
+	msa->len_orig = n_pos;
 	msa->rt = PC_RT_UNKNOWN;
 	msa->m = 256;
 	msa->name = name;

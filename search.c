@@ -21,6 +21,7 @@ KAVLL_INIT(pc_avl, pc_avln_t, head, avlcmp)
 
 struct pc_search_buf_s {
 	int32_t m, n_node, len;
+	const int32_t *ucnt;
 	pc_node_t **node;
 	pc_avln_t **avln, *root;
 };
@@ -34,14 +35,15 @@ void pc_search_opt_init(pc_search_opt_t *opt)
 	opt->max_iter_deep = 25;
 }
 
-pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, int32_t len)
+pc_search_buf_t *pc_search_buf_init(pc_tree_t *t, const pc_msa_t *msa)
 {
 	int32_t u;
 	pc_search_buf_t *sb;
 	sb = kom_calloc(pc_search_buf_t, 1);
 	sb->m = t->m;
 	sb->n_node = t->n_node;
-	sb->len = len;
+	sb->len = msa->len_uniq;
+	sb->ucnt = msa->ucnt;
 	sb->node = kom_calloc(pc_node_t*, sb->n_node);
 	sb->avln = kom_calloc(pc_avln_t*, sb->n_node);
 	for (u = 0; u < sb->n_node; ++u) {
@@ -69,7 +71,7 @@ static pc_avln_t *pc_search_update_avl(pc_search_buf_t *sb, const pc_node_t *xp,
 		const pc_node_t *yp, *up, *wp, *vp;
 		up = xp->parent, yp = up->child[(up->child[0] == xp)];
 		vp = up->parent, wp = vp->child[(vp->child[0] == up)];
-		xa->lk = pc_scfg_em5(sb->m, sb->len, md, wp, yp, up, xp, vp, max_iter_br, eps, xa->p5);
+		xa->lk = pc_scfg_em5(sb->m, sb->len, sb->ucnt, md, wp, yp, up, xp, vp, max_iter_br, eps, xa->p5);
 		xa->s = xa->lk - lk0;
 		//fprintf(stderr, "YY\t%d\t%f\t%f\n", xp->ftime, xa->s, lk0);
 	} else {
@@ -98,7 +100,7 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 
 	vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
 	up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
-	pc_scfg_update5(sb->m, sb->len, up);
+	pc_scfg_update5(sb->m, sb->len, sb->ucnt, up);
 
 	lk0 = xa->lk;
 	pc_search_update_avl(sb, xp, md, lk0, eps, max_iter_br);
@@ -127,7 +129,7 @@ void pc_search_prepare(pc_search_buf_t *sb, pc_model_t md, double eps, int32_t m
 		u = sb->n_node - 1; // the result should be the same regardless of the node
 		for (a = 0; a < m; ++a)
 			s += sb->node[u]->q->alpha[l * m + a] * sb->node[u]->q->beta[l * m + a];
-		lk0 += log(s * sb->node[u]->q->h[l]);
+		lk0 += log(s * sb->node[u]->q->h[l]) * sb->ucnt[l];
 	}
 	for (x = 0, u = 0; x < sb->n_node; ++x)
 		pc_search_update_avl(sb, sb->node[x], md, lk0, eps, max_iter_br);
@@ -160,7 +162,7 @@ void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 		if (lk - lk0 < opt->eps) break;
 		lk0 = lk;
 	}
-	sb = pc_search_buf_init(t, msa->len);
+	sb = pc_search_buf_init(t, msa);
 	for (k = 0; k < 3; ++k) {
 		int32_t i, n_nni;
 		pc_search_prepare(sb, opt->md, opt->eps, opt->max_iter_br);

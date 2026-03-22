@@ -117,7 +117,7 @@ void pc_model_dist(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md)
 	int32_t j;
 	double kR, kY;
 	assert(md == PC_MD_TN93);
-	pc_scfg_alloc(t, msa->len);
+	pc_scfg_alloc(t, msa->len_orig);
 	pc_scfg_post_cnt(t, msa);
 	for (j = 0; j < t->n_node - 1; ++j)
 		t->node[j]->d = pc_model_dist_TN93(t->node[j]->q->jc, &kR, &kY);

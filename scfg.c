@@ -82,7 +82,7 @@ double pc_scfg_inside(pc_tree_t *t, const pc_msa_t *msa, int32_t pos)
 		assert(v->n_child == 0 || v->n_child == 2); // only works for binary trees
 		if (v->n_child == 0) { /* leaf: initialize alpha from emission */
 			assert(v->seq_id >= 0 && v->seq_id < msa->n_seq);
-			pc_scfg_emit(m, msa->msa[pos][v->seq_id], alpha);
+			pc_scfg_emit(m, msa->uniq[pos][v->seq_id], alpha);
 		} else { /* internal: alpha(v,a) = prod_k alpha'(child_k, a) */
 			for (a = 0; a < m; ++a) alpha[a] = 1.0;
 			for (k = 0; k < v->n_child; ++k) {
@@ -147,7 +147,7 @@ void pc_scfg_outside(pc_tree_t *t, int32_t pos)
  * All-branch EM *
  *****************/
 
-static inline double pc_scfg_add_jc(int32_t m, const double *ua, const double *w2, const double *vb, const double *uq, double *uc, double *tmp)
+static inline double pc_scfg_add_jc(int32_t m, int32_t ucnt, const double *ua, const double *w2, const double *vb, const double *uq, double *uc, double *tmp)
 {
 	int32_t a, b;
 	double s, t;
@@ -158,7 +158,7 @@ static inline double pc_scfg_add_jc(int32_t m, const double *ua, const double *w
 	}
 	for (a = 0, t = 1.0 / s; a < m; ++a)
 		for (b = 0; b < m; ++b)
-			uc[a * m + b] += tmp[a * m + b] * t;
+			uc[a * m + b] += tmp[a * m + b] * t * ucnt;
 	return s; // \sum_{a,b} p_u(b|a)\eta_u(b|a)
 }
 
@@ -170,8 +170,8 @@ double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 	double *tmp = kom_malloc(double, m2 + m), *sib = tmp + m2;
 	for (j = 0; j < t->n_node; ++j)
 		memset(t->node[j]->q->jc, 0, m2 * sizeof(double));
-	for (i = 0; i < msa->len; ++i) {
-		loglk += pc_scfg_inside(t, msa, i);
+	for (i = 0; i < msa->len_uniq; ++i) {
+		loglk += pc_scfg_inside(t, msa, i) * msa->ucnt[i];
 		pc_scfg_outside(t, i);
 		for (j = 0; j < t->n_node - 1; ++j) {
 			pc_node_t *u = t->node[j], *v = u->parent;
@@ -182,7 +182,7 @@ double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 					for (a = 0; a < m; ++a) sib[a] *= a2k[a];
 				}
 			}
-			pc_scfg_add_jc(m, &u->q->alpha[i * m], sib, &v->q->beta[i * m], u->q->p, u->q->jc, tmp);
+			pc_scfg_add_jc(m, msa->ucnt[i], &u->q->alpha[i * m], sib, &v->q->beta[i * m], u->q->p, u->q->jc, tmp);
 		}
 		// special case: the root
 		assert(j == t->n_node - 1);
@@ -195,7 +195,7 @@ double pc_scfg_post_cnt(pc_tree_t *t, const pc_msa_t *msa)
 			sum = 1.0 / sum;
 			for (a = 0; a < m; ++a)
 				for (b = 0; b < m; ++b)
-					jc[a*m + b] += alpha_r[b] * beta_r[b] * sum;
+					jc[a*m + b] += alpha_r[b] * beta_r[b] * sum * msa->ucnt[i];
 		}
 	}
 	free(tmp);
@@ -236,7 +236,8 @@ double pc_scfg_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct)
  * 1-branch EM *
  ***************/
 
-double pc_scfg_em1(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double eps, double *p)
+double pc_scfg_em1(int32_t m, int32_t len, const int32_t *ucnt, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp,
+	int32_t max_itr, double eps, double *p)
 { // ((x,y)u,w)v
 	int32_t i, l, a;
 	double *cnt, *tmp, *ua, s, loglk = 0.0, loglk0 = 0.0;
@@ -256,8 +257,8 @@ double pc_scfg_em1(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 			} else {
 				memcpy(ua, &up->q->alpha[l * m], sizeof(double) * m);
 			}
-			s = pc_scfg_add_jc(m, ua, &wp->q->alpha2[l * m], &vp->q->beta[l * m], p, cnt, tmp);
-			loglk += log(s);
+			s = pc_scfg_add_jc(m, ucnt[l], ua, &wp->q->alpha2[l * m], &vp->q->beta[l * m], p, cnt, tmp);
+			loglk += log(s) * ucnt[l];
 		}
 		pc_model_matrix(cnt, m, ct, tmp);
 		pc_scfg_c2p(m, tmp, p);
@@ -276,7 +277,7 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	double best_delta = 0.0, *best_p, *p;
 	best_p = kom_calloc(double, m2 * 4);
 	p = best_p + m2;
-	for (l = 0; l < msa->len; ++l) {
+	for (l = 0; l < msa->len_uniq; ++l) {
 		pc_scfg_inside(t, msa, l);
 		pc_scfg_outside(t, l);
 	}
@@ -286,9 +287,9 @@ double pc_scfg_nni1(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 		if (up->n_child != 2 || vp->n_child != 2) continue;
 		wp = vp->child[(vp->child[0] == up)];
 		xp = up->child[0], yp = up->child[1];
-		loglk[0] = pc_scfg_em1(m, msa->len, ct, xp, yp, up, wp, vp, max_iter_br, eps, &p[0 * m2]);
-		loglk[1] = pc_scfg_em1(m, msa->len, ct, wp, yp, up, xp, vp, max_iter_br, eps, &p[1 * m2]);
-		loglk[2] = pc_scfg_em1(m, msa->len, ct, xp, wp, up, yp, vp, max_iter_br, eps, &p[2 * m2]);
+		loglk[0] = pc_scfg_em1(m, msa->len_uniq, msa->ucnt, ct, xp, yp, up, wp, vp, max_iter_br, eps, &p[0 * m2]);
+		loglk[1] = pc_scfg_em1(m, msa->len_uniq, msa->ucnt, ct, wp, yp, up, xp, vp, max_iter_br, eps, &p[1 * m2]);
+		loglk[2] = pc_scfg_em1(m, msa->len_uniq, msa->ucnt, ct, xp, wp, up, yp, vp, max_iter_br, eps, &p[2 * m2]);
 		for (r = 1; r <= 2; ++r) {
 			double delta = loglk[r] - loglk[0];
 			if (delta > best_delta) {
@@ -310,14 +311,14 @@ void pc_scfg_model_cmp(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md0, pc_mod
 {
 	int32_t l, u, m = t->m, m2 = m * m;
 	double *p = kom_calloc(double, m2);
-	for (l = 0; l < msa->len; ++l) {
+	for (l = 0; l < msa->len_uniq; ++l) {
 		pc_scfg_inside(t, msa, l);
 		pc_scfg_outside(t, l);
 	}
 	for (u = 0; u < t->n_node - 1; ++u) {
 		const pc_node_t *up = t->node[u], *vp = up->parent, *wp = vp->child[(vp->child[0] == up)];
-		double lk0 = pc_scfg_em1(m, msa->len, md0, 0, 0, up, wp, vp, max_iter_br, eps, p);
-		double lk1 = pc_scfg_em1(m, msa->len, md1, 0, 0, up, wp, vp, max_iter_br, eps, p);
+		double lk0 = pc_scfg_em1(m, msa->len_uniq, msa->ucnt, md0, 0, 0, up, wp, vp, max_iter_br, eps, p);
+		double lk1 = pc_scfg_em1(m, msa->len_uniq, msa->ucnt, md1, 0, 0, up, wp, vp, max_iter_br, eps, p);
 		diff[u] = lk0 - lk1;
 	}
 	diff[u] = 0.0; // root
@@ -347,7 +348,7 @@ static inline void pc_scfg_update_beta(int32_t m, double hu, const double *pu, c
 	}
 }
 
-double pc_scfg_update5(int32_t m, int32_t len, pc_node_t *up)
+double pc_scfg_update5(int32_t m, int32_t len, const int32_t *ucnt, pc_node_t *up)
 {
 	double loglk = 0.0;
 	int32_t l, a;
@@ -375,12 +376,13 @@ double pc_scfg_update5(int32_t m, int32_t len, pc_node_t *up)
 		pc_scfg_update_beta(m, yp->q->h[l], yp->q->p, ub, x2, &yp->q->beta[l * m]); // beta~(y,b)
 		for (a = 0, s = 0.0; a < m; ++a) s += ua[a] * ub[a];
 		s *= up->q->h[l];
-		loglk += log(s);
+		loglk += log(s) * ucnt[l];
 	}
 	return loglk;
 }
 
-double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp, int32_t max_itr, double eps, double *q)
+double pc_scfg_em5(int32_t m, int32_t len, const int32_t *ucnt, pc_model_t ct, const pc_node_t *xp, const pc_node_t *yp, const pc_node_t *up, const pc_node_t *wp, const pc_node_t *vp,
+	int32_t max_itr, double eps, double *q)
 { // topology: (((x,y)u,w)v,z)p
 	int32_t i, l, a, b, m2 = m * m;
 	double *tmp, loglk = 0.0, loglk0 = 0.0;
@@ -416,14 +418,14 @@ double pc_scfg_em5(int32_t m, int32_t len, pc_model_t ct, const pc_node_t *xp, c
 			pc_scfg_update_beta(m, up->q->h[l], uq, vb, w2, ub); // beta~(u,b)
 			for (b = 0, s = 0.0; b < m; ++b) s += ua[b] * ub[b];
 			s *= up->q->h[l];
-			loglk += log(s);
-			pc_scfg_add_jc(m, xa, y2, ub, xq, xc, tmp);
-			pc_scfg_add_jc(m, ya, x2, ub, yq, yc, tmp);
-			pc_scfg_add_jc(m, ua, w2, vb, uq, uc, tmp);
-			pc_scfg_add_jc(m, wa, u2, vb, wq, wc, tmp);
+			loglk += log(s) * ucnt[l];
+			pc_scfg_add_jc(m, ucnt[l], xa, y2, ub, xq, xc, tmp);
+			pc_scfg_add_jc(m, ucnt[l], ya, x2, ub, yq, yc, tmp);
+			pc_scfg_add_jc(m, ucnt[l], ua, w2, vb, uq, uc, tmp);
+			pc_scfg_add_jc(m, ucnt[l], wa, u2, vb, wq, wc, tmp);
 			if (vp->parent != 0) {
 				const pc_node_t *pp = vp->parent, *zp = pp->child[(pp->child[0] == vp)];
-				pc_scfg_add_jc(m, va, &zp->q->alpha2[l * m], &pp->q->beta[l * m], vq, vc, tmp);
+				pc_scfg_add_jc(m, ucnt[l], va, &zp->q->alpha2[l * m], &pp->q->beta[l * m], vq, vc, tmp);
 			}
 		}
 		pc_model_matrix(xc, m, ct, tmp); pc_scfg_c2p(m, tmp, xq);
@@ -448,7 +450,7 @@ double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 	double best_delta = 0.0, *best_p, *p;
 	best_p = kom_calloc(double, 4 * m2 * 5);
 	p = best_p + m2 * 5;
-	for (l = 0; l < msa->len; ++l) {
+	for (l = 0; l < msa->len_uniq; ++l) {
 		pc_scfg_inside(t, msa, l);
 		pc_scfg_outside(t, l);
 	}
@@ -458,9 +460,9 @@ double pc_scfg_nni5(pc_tree_t *t, const pc_msa_t *msa, pc_model_t ct, int32_t ma
 		if (up->n_child != 2 || vp->n_child != 2) continue;
 		wp = vp->child[(vp->child[0] == up)];
 		xp = up->child[0], yp = up->child[1];
-		loglk[0] = pc_scfg_em5(m, msa->len, ct, xp, yp, up, wp, vp, max_iter_br, eps, &p[0 * m2 * 5]);
-		loglk[1] = pc_scfg_em5(m, msa->len, ct, wp, yp, up, xp, vp, max_iter_br, eps, &p[1 * m2 * 5]);
-		loglk[2] = pc_scfg_em5(m, msa->len, ct, xp, wp, up, yp, vp, max_iter_br, eps, &p[2 * m2 * 5]);
+		loglk[0] = pc_scfg_em5(m, msa->len_uniq, msa->ucnt, ct, xp, yp, up, wp, vp, max_iter_br, eps, &p[0 * m2 * 5]);
+		loglk[1] = pc_scfg_em5(m, msa->len_uniq, msa->ucnt, ct, wp, yp, up, xp, vp, max_iter_br, eps, &p[1 * m2 * 5]);
+		loglk[2] = pc_scfg_em5(m, msa->len_uniq, msa->ucnt, ct, xp, wp, up, yp, vp, max_iter_br, eps, &p[2 * m2 * 5]);
 		for (r = 1; r <= 2; ++r) {
 			double delta = loglk[r] - loglk[0];
 			if (delta > best_delta) {
