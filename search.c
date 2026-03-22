@@ -158,8 +158,8 @@ int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int
 			const pc_node_t *xp = xt->p, *up, *vp, *wp;
 			if (xt->s < eps) break;
 			up = xp->parent, vp = up->parent, wp = vp->child[(vp->child[0] == up)];
-			if (wp->ftime == xt->no_nni) continue;
-			xa = xt;
+			if (wp->ftime != xt->no_nni) xa = xt;
+			else break;
 		} while (pc_avl_itr_next(&itr));
 		if (xa == 0) break;
 		++n_nni;
@@ -181,7 +181,7 @@ void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 		lk0 = lk;
 	}
 	sb = pc_search_buf_alloc(t, msa);
-	for (k = 0; k < 3; ++k) {
+	for (k = 0; k < 5; ++k) {
 		int32_t i, n_nni;
 		if (kom_verbose >= 4) fprintf(stderr, "RD\t%d\n", k + 1);
 		pc_search_prepare(t, sb, opt->md, opt->eps, opt->max_iter_br);
@@ -193,12 +193,6 @@ void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 		if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%f\n", i, lk);
 	}
 	pc_search_buf_destroy(sb);
-	for (k = 0, lk0 = PC_NEG_INF; k < opt->max_iter_deep; ++k) {
-		lk = pc_scfg_em_all(t, msa, opt->md);
-		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", k, lk);
-		if (lk - lk0 < opt->eps) break;
-		lk0 = lk;
-	}
 	if (msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON)
 		pc_model_dist(t, msa, PC_MD_TN93);
 }
