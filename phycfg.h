@@ -1,7 +1,7 @@
 #ifndef PHYCFG_H
 #define PHYCFG_H
 
-#define PC_VERSION "0.0-dirty-r130"
+#define PC_VERSION "0.0-dirty-r131"
 
 #include <stdint.h>
 

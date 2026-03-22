@@ -103,7 +103,13 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 	pc_scfg_update5(sb->m, sb->len, sb->ucnt, up);
 
 	lk0 = xa->lk;
+	if (vp->parent && vp->parent->parent) {
+		pc_search_update_avl(sb, vp, md, lk0, eps, max_iter_br);
+	}
 	pc_search_update_avl(sb, xp, md, lk0, eps, max_iter_br);
+	pc_search_update_avl(sb, up, md, lk0, eps, max_iter_br);
+	pc_search_update_avl(sb, wp, md, lk0, eps, max_iter_br);
+	pc_search_update_avl(sb, yp, md, lk0, eps, max_iter_br);
 	if (xp->n_child == 2) {
 		pc_search_update_avl(sb, xp->child[0], md, lk0, eps, max_iter_br);
 		pc_search_update_avl(sb, xp->child[1], md, lk0, eps, max_iter_br);
@@ -143,7 +149,7 @@ int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int
 		const pc_avln_t *xa;
 		pc_avl_itr_first(sb->root, &itr);
 		xa = kavll_at(&itr);
-		if (xa->s < 0.0) break;
+		if (xa->s < eps) break;
 		++n_nni;
 		if (kom_verbose >= 4) fprintf(stderr, "NI\t%d\t%f\n", xa->p->ftime, xa->s);
 		pc_search_update_tree(sb, xa, md, eps, max_iter_br);
