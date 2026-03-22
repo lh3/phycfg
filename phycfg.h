@@ -23,7 +23,7 @@ typedef struct pc_node_s {
 	char *name; // node name
 	struct pc_node_s *parent; // parent node; NULL for the root
 	struct pc_node_s *child[]; // children; allocated along with the node
-} pc_node_t, *pc_node_p;
+} pc_node_t;
 
 typedef struct {
 	int32_t n_node; // number of nodes
@@ -59,8 +59,6 @@ typedef struct {
 	double eps;
 } pc_search_opt_t;
 
-typedef struct pc_search_buf_s pc_search_buf_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,6 +83,7 @@ int32_t pc_tree_rotate(pc_tree_t *t, int32_t xi);
 int32_t pc_tree_mid_longest(const pc_tree_t *t, double *dist_to_mid);
 void pc_tree_reroot(pc_tree_t *t, int32_t nid, double dist);
 int32_t pc_tree_match_msa(pc_tree_t *t, const pc_msa_t *msa);
+void pc_tree_strip_iname(pc_tree_t *t);
 
 pc_tree_t *pc_tree_read(const char *fn);
 int32_t pc_tree_format(const pc_tree_t *t, char **s, int32_t *max);

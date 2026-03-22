@@ -6,14 +6,15 @@
 #include "pcpriv.h"
 #include "kommon.h"
 
-static pc_scfg_data_t *pc_scfg_data_new(int32_t m, int32_t len)
+pc_scfg_data_t *pc_scfg_data_new(int32_t m, int32_t len)
 {
 	pc_scfg_data_t *s;
-	int32_t n_dbl = m * m * 2 + len * m + len * m * 3;
+	int32_t n_dbl = len < 0? m * m : m * m * 2 + len * m + len * m * 3;
 	double *p;
 	s = (pc_scfg_data_t*)calloc(1, sizeof(pc_scfg_data_t) + n_dbl * sizeof(double));
 	p = s->x;
 	s->p = p, p += m * m;
+	if (len < 0) return s; // only allocate pc_scfg_data_t::p
 	s->jc = p, p += m * m;
 	s->h = p, p += len;
 	s->alpha = p, p += len * m;

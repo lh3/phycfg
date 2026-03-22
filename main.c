@@ -325,6 +325,7 @@ int main_search(int argc, char *argv[])
 
 	pc_tree_t *t = pc_tree_read(argv[o.ind]);
 	if (t == NULL) return 1;
+	pc_tree_strip_iname(t);
 	pc_msa_t *msa = pc_msa_read(argv[o.ind + 1]);
 	if (msa == NULL) { pc_tree_destroy(t); return 1; }
 

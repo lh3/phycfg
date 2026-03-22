@@ -106,6 +106,7 @@ pc_tree_t *pc_tree_clone(const pc_tree_t *t)
 		d->seq_id = s->seq_id;
 		d->d      = s->d;
 		d->name   = s->name ? kom_strdup(s->name) : NULL;
+		d->q      = s->q? pc_scfg_data_new(t->m, -1) : NULL;
 	}
 
 	/* Wire up parent and child pointers using ftime as the map key */
@@ -128,11 +129,24 @@ void pc_tree_destroy(pc_tree_t *t)
 	if (t == NULL) return;
 	pc_scfg_free(t);
 	for (i = 0; i < t->n_node; ++i) {
+		free(t->node[i]->q);
 		free(t->node[i]->name);
 		free(t->node[i]);
 	}
 	free(t->node);
 	free(t);
+}
+
+void pc_tree_strip_iname(pc_tree_t *t)
+{
+	int32_t i;
+	for (i = 0; i < t->n_node; ++i) {
+		pc_node_t *p = t->node[i];
+		if (p->n_child > 0) {
+			free(p->name);
+			p->name = NULL;
+		}
+	}
 }
 
 void pc_tree_mark_leaf(const pc_tree_t *t, int32_t n, char **leaf, uint8_t *mark)

@@ -19,12 +19,12 @@ typedef struct pc_avln_s {
 #define avlcmp(a, b) ((a)->s != (b)->s? ((a)->s < (b)->s) - ((b)->s < (a)->s) : ((b)->p < (a)->p) - ((a)->p < (b)->p)) // descending in s
 KAVLL_INIT(pc_avl, pc_avln_t, head, avlcmp)
 
-struct pc_search_buf_s {
+typedef struct {
 	int32_t m, n_node, len;
 	const int32_t *ucnt;
 	pc_node_t **node;
 	pc_avln_t **avln, *root;
-};
+} pc_search_buf_t;
 
 void pc_search_opt_init(pc_search_opt_t *opt)
 {
