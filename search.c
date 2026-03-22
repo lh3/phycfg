@@ -97,6 +97,7 @@ void pc_search_prepare(pc_tree_t *t, pc_search_buf_t *sb, pc_model_t md, double 
 			s += sb->node[u]->q->alpha[l * m + a] * sb->node[u]->q->beta[l * m + a];
 		lk0 += log(s * sb->node[u]->q->h[l]) * sb->ucnt[l];
 	}
+	sb->root = 0;
 	for (x = 0, u = 0; x < sb->n_node; ++x)
 		pc_search_update_avl(sb, sb->node[x], md, lk0, eps, max_iter_br);
 }
