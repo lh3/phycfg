@@ -20,7 +20,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "  msaflt     filter MSA columns by non-gap residue count\n");
 	fprintf(fp, "  reroot     reroot a tree (mid-point by default)\n");
 	fprintf(fp, "  scfg       SCFG-based phylogenetic analysis\n");
-	fprintf(fp, "  search     topology search\n");
+	fprintf(fp, "  search     topology search (via NNI only)\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -305,13 +305,14 @@ int main_search(int argc, char *argv[])
 
 	kom_verbose = 4;
 	pc_search_opt_init(&opt);
-	while (ketopt(&o, argc, argv, 1, "d:b:m:e:v:r:", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "d:b:m:e:v:r:f:", 0) >= 0) {
 		if      (o.opt == 'd') opt.max_iter_deep = atoi(o.arg);
 		else if (o.opt == 'b') opt.max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') opt.md = pc_model_from_str(o.arg);
 		else if (o.opt == 'e') opt.eps = atof(o.arg);
-		else if (o.opt == 'v') kom_verbose = atoi(o.arg);
 		else if (o.opt == 'r') opt.n_perturb_round = atoi(o.arg);
+		else if (o.opt == 'f') opt.perturb_frac = atof(o.arg);
+		else if (o.opt == 'v') kom_verbose = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg search [options] <tree.nhx.gz> <aln.mfa.gz>\n");
@@ -320,6 +321,8 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "  -e FLOAT  epsilon [%g]\n", opt.eps);
 		fprintf(stderr, "  -d INT    number of EM iterations for the whole tree [%d]\n", opt.max_iter_deep);
 		fprintf(stderr, "  -b INT    number of EM iterations per branch [%d]\n", opt.max_iter_br);
+		fprintf(stderr, "  -r INT    number of perturbation rounds [%d]\n", opt.n_perturb_round);
+		fprintf(stderr, "  -f FLOAT  perturbation fraction [%g]\n", opt.perturb_frac);
 		fprintf(stderr, "  -v INT    verbose level [%d]\n", kom_verbose);
 		return 1;
 	}

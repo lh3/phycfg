@@ -1,7 +1,7 @@
 #ifndef PHYCFG_H
 #define PHYCFG_H
 
-#define PC_VERSION "0.0-dirty-r137"
+#define PC_VERSION "0.0-dirty-r140"
 
 #include <stdint.h>
 
@@ -57,8 +57,8 @@ typedef struct {
 	int32_t max_iter_br;
 	int32_t max_iter_deep;
 	int32_t n_perturb_round;
-	int32_t n_perturb_node;
 	double eps;
+	double perturb_frac;
 } pc_search_opt_t;
 
 #ifdef __cplusplus

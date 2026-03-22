@@ -24,6 +24,7 @@ typedef struct {
 	int32_t m, n_node, len;
 	const int32_t *ucnt;
 	double best_lk;
+	uint64_t rng;
 	pc_tree_t *best;
 	pc_node_t **node;
 	pc_avln_t **avln, *root;
@@ -33,8 +34,8 @@ void pc_search_opt_init(pc_search_opt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
 	opt->md = PC_MD_FULL;
-	opt->n_perturb_round = 3;
-	opt->n_perturb_node = 15;
+	opt->n_perturb_round = 5;
+	opt->perturb_frac = 0.2;
 	opt->eps = 0.01;
 	opt->max_iter_br = 20;
 	opt->max_iter_deep = 25;
@@ -45,6 +46,7 @@ pc_search_buf_t *pc_search_buf_alloc(pc_tree_t *t, const pc_msa_t *msa)
 	int32_t u;
 	pc_search_buf_t *sb;
 	sb = kom_calloc(pc_search_buf_t, 1);
+	sb->rng = 11;
 	sb->m = t->m;
 	sb->n_node = t->n_node;
 	sb->len = msa->len_uniq;
@@ -175,22 +177,30 @@ int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int
 	return n_nni;
 }
 
-int32_t pc_search_nni_perturb(pc_search_buf_t *sb, int32_t n_perturb)
+int32_t pc_search_nni_perturb(pc_search_buf_t *sb, double perturb_frac, int32_t is_random)
 {
-	int32_t n_nni = 0;
 	pc_avl_itr_t itr;
+	pc_node_t **p;
+	int32_t i, n_p = 0, n_perturb;
+	assert(sb->n_node > 3);
+	n_perturb = (int32_t)((sb->n_node - 3) * perturb_frac + 1.0);
+	p = kom_calloc(pc_node_t*, n_perturb);
 	pc_avl_itr_first(sb->root, &itr);
 	do {
 		const pc_avln_t *xa = kavll_at(&itr);
-		pc_node_t *xp = xa->p, *up, *vp, *wp;
+		pc_node_t *xp = xa->p;
 		if (xp->parent == 0 || xp->parent->parent == 0) continue;
+		if (!is_random || kom_u64todbl(kom_splitmix64(&sb->rng)) < perturb_frac)
+			p[n_p++] = xp;
+	} while (n_p < n_perturb && pc_avl_itr_next(&itr));
+	for (i = 0; i < n_p; ++i) {
+		pc_node_t *xp = p[i], *up, *vp, *wp;
 		up = xp->parent, vp = up->parent, wp = vp->child[(vp->child[0] == up)];
 		vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
 		up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
-		//fprintf(stderr, "XXXX\t%d\t%f\n", xp->ftime, xa->s);
-		++n_nni;
-	} while (n_nni < n_perturb && pc_avl_itr_next(&itr));
-	return n_nni;
+	}
+	free(p);
+	return n_p;
 }
 
 static double pc_search_recover(const pc_tree_t *src, const pc_msa_t *msa, pc_tree_t *t)
@@ -221,26 +231,26 @@ static double pc_search_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md,
 
 void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 {
-	int32_t k, l;
-	double lk;
+	int32_t k, l, is_random = 0;
 	pc_search_buf_t *sb = pc_search_buf_alloc(t, msa);
-	lk = pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_deep);
-	for (l = 0; l < opt->n_perturb_round + 1; ++l) {
+	pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_deep);
+	for (l = 0; l < opt->n_perturb_round + 1; ++l, is_random = !is_random) { // is_random is alternating
+		double lk;
 		if (l > 0) {
-			pc_search_nni_perturb(sb, opt->n_perturb_node);
+			pc_search_nni_perturb(sb, opt->perturb_frac, is_random);
 			pc_tree_sync(t);
 			lk = pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_br);
 		}
 		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", l, lk);
 		for (k = 0; k < 5; ++k) {
 			int32_t n_nni;
-			if (kom_verbose >= 4) fprintf(stderr, "RD\t%d\t%d\n", l + 1, k + 1);
+			if (kom_verbose >= 4) fprintf(stderr, "RD\t%d\t%d\n", l, k + 1);
 			pc_search_prepare(t, sb, opt->md, opt->eps, opt->max_iter_br);
 			n_nni = pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
 			if (n_nni == 0) break;
 			pc_tree_sync(t);
 			lk = pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_br);
-			if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%d\t%f\n", l + 1, k + 1, lk);
+			if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%d\t%f\n", l, k + 1, lk);
 		}
 		if (sb->best == 0 || sb->best_lk < lk) {
 			if (sb->best) pc_tree_destroy(sb->best);
@@ -250,6 +260,7 @@ void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
 			pc_search_recover(sb->best, msa, t);
 		}
 	}
+	if (kom_verbose >= 4) fprintf(stderr, "BL\t%f\n", sb->best_lk);
 	pc_search_buf_destroy(sb);
 	if (msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON)
 		pc_model_dist(t, msa, PC_MD_TN93);
