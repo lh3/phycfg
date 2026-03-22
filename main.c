@@ -305,12 +305,13 @@ int main_search(int argc, char *argv[])
 
 	kom_verbose = 4;
 	pc_search_opt_init(&opt);
-	while (ketopt(&o, argc, argv, 1, "d:b:m:e:v:", 0) >= 0) {
+	while (ketopt(&o, argc, argv, 1, "d:b:m:e:v:r:", 0) >= 0) {
 		if      (o.opt == 'd') opt.max_iter_deep = atoi(o.arg);
 		else if (o.opt == 'b') opt.max_iter_br = atoi(o.arg);
 		else if (o.opt == 'm') opt.md = pc_model_from_str(o.arg);
 		else if (o.opt == 'e') opt.eps = atof(o.arg);
 		else if (o.opt == 'v') kom_verbose = atoi(o.arg);
+		else if (o.opt == 'r') opt.n_perturb_round = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stderr, "Usage: phycfg search [options] <tree.nhx.gz> <aln.mfa.gz>\n");

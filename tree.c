@@ -115,7 +115,10 @@ void pc_tree_copy(const pc_tree_t *src, pc_tree_t *dst)
 		d->seq_id = s->seq_id;
 		d->d      = s->d;
 		d->name   = s->name ? kom_strdup(s->name) : NULL;
-		d->q      = s->q ? pc_scfg_data_new(src->m, -1) : NULL;
+		if (s->q) {
+			d->q  = pc_scfg_data_new(src->m, -1);
+			memcpy(d->q->p, s->q->p, sizeof(double) * dst->m * dst->m);
+		}
 	}
 
 	/* Wire up parent and child pointers using ftime as the map key */

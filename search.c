@@ -23,6 +23,8 @@ KAVLL_INIT(pc_avl, pc_avln_t, head, avlcmp)
 typedef struct {
 	int32_t m, n_node, len;
 	const int32_t *ucnt;
+	double best_lk;
+	pc_tree_t *best;
 	pc_node_t **node;
 	pc_avln_t **avln, *root;
 } pc_search_buf_t;
@@ -31,6 +33,8 @@ void pc_search_opt_init(pc_search_opt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
 	opt->md = PC_MD_FULL;
+	opt->n_perturb_round = 3;
+	opt->n_perturb_node = 15;
 	opt->eps = 0.01;
 	opt->max_iter_br = 20;
 	opt->max_iter_deep = 25;
@@ -44,6 +48,7 @@ pc_search_buf_t *pc_search_buf_alloc(pc_tree_t *t, const pc_msa_t *msa)
 	sb->m = t->m;
 	sb->n_node = t->n_node;
 	sb->len = msa->len_uniq;
+	sb->best_lk = PC_NEG_INF;
 	sb->ucnt = msa->ucnt;
 	sb->node = kom_calloc(pc_node_t*, sb->n_node);
 	sb->avln = kom_calloc(pc_avln_t*, sb->n_node);
@@ -170,28 +175,80 @@ int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int
 	return n_nni;
 }
 
-void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
+int32_t pc_search_nni_perturb(pc_search_buf_t *sb, int32_t n_perturb)
+{
+	int32_t n_nni = 0;
+	pc_avl_itr_t itr;
+	pc_avl_itr_first(sb->root, &itr);
+	do {
+		const pc_avln_t *xa = kavll_at(&itr);
+		pc_node_t *xp = xa->p, *up, *vp, *wp;
+		if (xp->parent == 0 || xp->parent->parent == 0) continue;
+		up = xp->parent, vp = up->parent, wp = vp->child[(vp->child[0] == up)];
+		vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
+		up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
+		//fprintf(stderr, "XXXX\t%d\t%f\n", xp->ftime, xa->s);
+		++n_nni;
+	} while (n_nni < n_perturb && pc_avl_itr_next(&itr));
+	return n_nni;
+}
+
+static double pc_search_recover(const pc_tree_t *src, const pc_msa_t *msa, pc_tree_t *t)
+{
+	int32_t u, m = src->m, m2 = m * m;
+	pc_tree_copy(src, t);
+	for (u = 0; u < t->n_node; ++u) {
+		pc_node_t *up = t->node[u];
+		pc_scfg_data_t *q0 = up->q;
+		up->q = pc_scfg_data_new(m, msa->len_uniq);
+		memcpy(up->q->p, q0->p, sizeof(double) * m2);
+		free(q0);
+	}
+	return pc_scfg_post_cnt(t, msa);
+}
+
+static double pc_search_em_all(pc_tree_t *t, const pc_msa_t *msa, pc_model_t md, double eps, int32_t max_iter)
 {
 	int32_t k;
 	double lk0, lk;
-	pc_search_buf_t *sb;
-	for (k = 0, lk0 = PC_NEG_INF; k < opt->max_iter_deep; ++k) {
-		lk = pc_scfg_em_all(t, msa, opt->md);
-		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", k, lk);
-		if (lk - lk0 < opt->eps) break;
+	for (k = 0, lk0 = PC_NEG_INF; k < max_iter; ++k) {
+		lk = pc_scfg_em_all(t, msa, md);
+		if (lk - lk0 < eps) break;
 		lk0 = lk;
 	}
-	sb = pc_search_buf_alloc(t, msa);
-	for (k = 0; k < 5; ++k) {
-		int32_t i, n_nni;
-		if (kom_verbose >= 4) fprintf(stderr, "RD\t%d\n", k + 1);
-		pc_search_prepare(t, sb, opt->md, opt->eps, opt->max_iter_br);
-		n_nni = pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
-		if (n_nni == 0) break;
-		pc_tree_sync(t);
-		for (i = 0; i < opt->max_iter_br; ++i)
-			lk = pc_scfg_em_all(t, msa, opt->md);
-		if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%f\n", i, lk);
+	return lk;
+}
+
+void pc_search(pc_tree_t *t, const pc_msa_t *msa, const pc_search_opt_t *opt)
+{
+	int32_t k, l;
+	double lk;
+	pc_search_buf_t *sb = pc_search_buf_alloc(t, msa);
+	lk = pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_deep);
+	for (l = 0; l < opt->n_perturb_round + 1; ++l) {
+		if (l > 0) {
+			pc_search_nni_perturb(sb, opt->n_perturb_node);
+			pc_tree_sync(t);
+			lk = pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_br);
+		}
+		if (kom_verbose >= 4) fprintf(stderr, "TL\t%d\t%f\n", l, lk);
+		for (k = 0; k < 5; ++k) {
+			int32_t n_nni;
+			if (kom_verbose >= 4) fprintf(stderr, "RD\t%d\t%d\n", l + 1, k + 1);
+			pc_search_prepare(t, sb, opt->md, opt->eps, opt->max_iter_br);
+			n_nni = pc_search_nni_greedy(sb, opt->md, opt->eps, opt->max_iter_br);
+			if (n_nni == 0) break;
+			pc_tree_sync(t);
+			lk = pc_search_em_all(t, msa, opt->md, opt->eps, opt->max_iter_br);
+			if (kom_verbose >= 4) fprintf(stderr, "NL\t%d\t%d\t%f\n", l + 1, k + 1, lk);
+		}
+		if (sb->best == 0 || sb->best_lk < lk) {
+			if (sb->best) pc_tree_destroy(sb->best);
+			sb->best = pc_tree_clone(t);
+			sb->best_lk = lk;
+		} else if (sb->best) {
+			pc_search_recover(sb->best, msa, t);
+		}
 	}
 	pc_search_buf_destroy(sb);
 	if (msa->rt == PC_RT_NT || msa->rt == PC_RT_CODON)

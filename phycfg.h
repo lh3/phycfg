@@ -56,6 +56,8 @@ typedef struct {
 	pc_model_t md;
 	int32_t max_iter_br;
 	int32_t max_iter_deep;
+	int32_t n_perturb_round;
+	int32_t n_perturb_node;
 	double eps;
 } pc_search_opt_t;
 
