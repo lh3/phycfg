@@ -11,6 +11,7 @@
 
 typedef struct pc_avln_s {
 	double s, lk;
+	int32_t no_nni;
 	pc_node_t *p;
 	KAVLL_HEAD(struct pc_avln_s) head;
 	double p5[];
@@ -87,6 +88,7 @@ void pc_search_prepare(pc_tree_t *t, pc_search_buf_t *sb, pc_model_t md, double 
 	for (u = 0; u < sb->n_node; ++u) {
 		sb->node[u] = t->node[u];
 		sb->avln[t->node[u]->ftime]->p = t->node[u];
+		sb->avln[t->node[u]->ftime]->no_nni = -1;
 	}
 	for (l = 0, lk0 = 0.0; l < sb->len; ++l) {
 		double s = 0.0;
@@ -116,6 +118,8 @@ static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_m
 	if (vp->parent)
 		memcpy(vp->q->p, &xa->p5[4 * m2], sizeof(double) * m2);
 
+	sb->avln[wp->ftime]->no_nni = xp->ftime;
+	sb->avln[xp->ftime]->no_nni = wp->ftime;
 	vp->child[vp->child[0] == wp? 0 : 1] = xp, xp->parent = vp;
 	up->child[up->child[0] == xp? 0 : 1] = wp, wp->parent = up;
 	pc_scfg_update5(sb->m, sb->len, sb->ucnt, up);
@@ -147,10 +151,17 @@ int32_t pc_search_nni_greedy(pc_search_buf_t *sb, pc_model_t md, double eps, int
 	int32_t n_nni = 0;
 	while (1) {
 		pc_avl_itr_t itr;
-		const pc_avln_t *xa;
+		const pc_avln_t *xa = 0;
 		pc_avl_itr_first(sb->root, &itr);
-		xa = kavll_at(&itr);
-		if (xa->s < eps) break;
+		do {
+			const pc_avln_t *xt = kavll_at(&itr);
+			const pc_node_t *xp = xt->p, *up, *vp, *wp;
+			if (xt->s < eps) break;
+			up = xp->parent, vp = up->parent, wp = vp->child[(vp->child[0] == up)];
+			if (wp->ftime == xt->no_nni) continue;
+			xa = xt;
+		} while (pc_avl_itr_next(&itr));
+		if (xa == 0) break;
 		++n_nni;
 		if (kom_verbose >= 4) fprintf(stderr, "NI\t%d\t%f\n", xa->p->ftime, xa->s);
 		pc_search_update_tree(sb, xa, md, eps, max_iter_br);
