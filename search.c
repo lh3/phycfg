@@ -26,7 +26,6 @@ typedef struct {
 	double best_lk;
 	uint64_t rng;
 	pc_tree_t *best;
-	pc_node_t **node;
 	pc_avln_t **avln, *root;
 } pc_search_buf_t;
 
@@ -52,12 +51,9 @@ pc_search_buf_t *pc_search_buf_alloc(pc_tree_t *t, const pc_msa_t *msa)
 	sb->len = msa->len_uniq;
 	sb->best_lk = PC_NEG_INF;
 	sb->ucnt = msa->ucnt;
-	sb->node = kom_calloc(pc_node_t*, sb->n_node);
 	sb->avln = kom_calloc(pc_avln_t*, sb->n_node);
-	for (u = 0; u < sb->n_node; ++u) {
-		sb->node[u] = t->node[u];
+	for (u = 0; u < sb->n_node; ++u)
 		sb->avln[u] = (pc_avln_t*)calloc(1, sizeof(pc_avln_t) + sizeof(double) * 5 * t->m * t->m);
-	}
 	return sb;
 }
 
@@ -65,7 +61,7 @@ void pc_search_buf_destroy(pc_search_buf_t *sb)
 {
 	int32_t u;
 	for (u = 0; u < sb->n_node; ++u) free(sb->avln[u]);
-	free(sb->node); free(sb->avln); free(sb);
+	free(sb->avln); free(sb);
 }
 
 static pc_avln_t *pc_search_update_avl(pc_search_buf_t *sb, const pc_node_t *xp, pc_model_t md, double lk0, double eps, int32_t max_iter_br)
@@ -93,7 +89,6 @@ void pc_search_prepare(pc_tree_t *t, pc_search_buf_t *sb, pc_model_t md, double 
 	int32_t u, x, l, a, m = sb->m;
 	double lk0;
 	for (u = 0; u < sb->n_node; ++u) {
-		sb->node[u] = t->node[u];
 		sb->avln[t->node[u]->ftime]->p = t->node[u];
 		sb->avln[t->node[u]->ftime]->no_nni = -1;
 	}
@@ -101,12 +96,12 @@ void pc_search_prepare(pc_tree_t *t, pc_search_buf_t *sb, pc_model_t md, double 
 		double s = 0.0;
 		u = sb->n_node - 1; // the result should be the same regardless of the node
 		for (a = 0; a < m; ++a)
-			s += sb->node[u]->q->alpha[l * m + a] * sb->node[u]->q->beta[l * m + a];
-		lk0 += log(s * sb->node[u]->q->h[l]) * sb->ucnt[l];
+			s += t->node[u]->q->alpha[l * m + a] * t->node[u]->q->beta[l * m + a];
+		lk0 += log(s * t->node[u]->q->h[l]) * sb->ucnt[l];
 	}
 	sb->root = 0;
 	for (x = 0, u = 0; x < sb->n_node; ++x)
-		pc_search_update_avl(sb, sb->node[x], md, lk0, eps, max_iter_br);
+		pc_search_update_avl(sb, t->node[x], md, lk0, eps, max_iter_br);
 }
 
 static void pc_search_update_tree(pc_search_buf_t *sb, const pc_avln_t *xa, pc_model_t md, double eps, int32_t max_iter_br)
