@@ -275,7 +275,7 @@ x_{ub|va}&=&\mathbb{E}_{\pi|D}\,X_{ub|va}(\pi)\\
 We can also derive the posterior expectation of the number of times
 $v\to\{u,v\setminus u\}$ is applied:
 $$
-x_{u|v}=\frac{\phi_v(u|v)\zeta(u|v)}{\sum_{v'\in{\rm pred}(u)}\phi(u|v')\zeta(u|v')}
+x_{u|v}=\frac{\phi_v(u|v)\zeta(u|v)}{\sum_{u'\in{\rm succ}(v)}\phi(u'|v)\zeta(u'|v)}
 $$
 
 \end{document}
